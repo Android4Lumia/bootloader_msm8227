@@ -336,6 +336,9 @@ void board_info(void)
 			case 0xF:
 				hw_platform = MSM7X27A_QRD3;
 				break;
+			case 0x10:
+				hw_platform = MSM7X27A_EVT;
+				break;
 			default:
 				if (msm_is_7x25a(target_msm_id))
 					hw_platform = MSM7X25A_SURF;
@@ -569,6 +572,7 @@ int machine_is_evb()
 		case MSM7X27A_EVB:
 		case MSM8X25_EVB:
 		case MSM8X25_EVT:
+		case MSM7X27A_EVT:
 			ret = 1;
 			break;
 		default:
