@@ -131,7 +131,14 @@ int clock_lib2_rcg_set_rate(struct clk *c, unsigned rate)
 		return rc;
 
 	/* First enable the source clock for this freq. */
-	clk_enable(nf->src_clk);
+	rc = clk_enable(nf->src_clk);
+
+	if(rc)
+	{
+		dprintf(CRITICAL, "clock_lib2_rcg_set_rate: failed to enable clk %s ret %d\n",
+									nf->src_clk->dbg_name, rc);
+		ASSERT(0);
+	}
 
 	/* Perform clock-specific frequency switch operations. */
 	ASSERT(rclk->set_rate);
