@@ -44,6 +44,7 @@
 #include <gsbi.h>
 #include <target.h>
 #include <platform.h>
+#include <dload_util.h>
 #include <baseband.h>
 #include <uart_dm.h>
 #include <crypto_hash.h>
@@ -195,6 +196,16 @@ static unsigned target_check_power_on_reason(void)
 	}
 	dprintf(INFO, "Power on reason %u\n", power_on_status);
 	return power_on_status;
+}
+
+int set_download_mode(enum dload_mode mode)
+{
+	mode = NORMAL_DLOAD;
+
+	dload_util_write_cookie(mode == NORMAL_DLOAD ?
+		DLOAD_MODE_ADDR : EMERGENCY_DLOAD_MODE_ADDR, mode);
+
+	return 0;
 }
 
 void reboot_device(unsigned reboot_reason)
