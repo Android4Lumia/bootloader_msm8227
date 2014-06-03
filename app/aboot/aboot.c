@@ -2774,6 +2774,30 @@ void cmd_oem_devinfo(const char *arg, void *data, unsigned sz)
 	fastboot_okay("");
 }
 
+#if WITH_DEBUG_LOG_BUF
+void cmd_oem_lk_log(const char *arg, void *data, unsigned sz)
+{
+	char* pch;
+	char* buf = strdup(lk_log_getbuf());
+
+	pch = strtok(buf, "\n\r");
+	while (pch != NULL) {
+		char* ptr = pch;
+		while(ptr!=NULL) {
+			fastboot_info(ptr);
+			if(strlen(ptr)>MAX_RSP_SIZE-5)
+				ptr+=MAX_RSP_SIZE-5;
+			else ptr=NULL;
+		}
+
+		pch = strtok(NULL, "\n\r");
+	}
+
+	free(buf);
+	fastboot_okay("");
+}
+#endif
+
 void cmd_preflash(const char *arg, void *data, unsigned sz)
 {
 	fastboot_okay("");
@@ -3023,6 +3047,9 @@ void aboot_fastboot_register_commands(void)
 											{"oem enable-charger-screen", cmd_oem_enable_charger_screen},
 											{"oem disable-charger-screen", cmd_oem_disable_charger_screen},
 											{"oem select-display-panel", cmd_oem_select_display_panel},
+#if WITH_DEBUG_LOG_BUF
+											{"oem lk_log", cmd_oem_lk_log},
+#endif
 #endif
 										  };
 
