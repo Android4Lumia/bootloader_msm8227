@@ -1,10 +1,6 @@
 #Makefile to generate appsboot.mbn
 
-ifeq ($(BOOTLOADER_OUT),.)
 APPSBOOTHEADER_DIR  := $(BUILDDIR)
-else
-APPSBOOTHEADER_DIR  := $(BOOTLOADER_OUT)/../..
-endif
 
 SRC_DIR  := target/$(TARGET)/tools
 COMPILER := gcc

@@ -29,7 +29,7 @@ endif
 
 DEBUG ?= 0
 
-ifndef $(BOOTLOADER_OUT)
+ifndef BOOTLOADER_OUT
 BOOTLOADER_OUT := .
 endif
 
