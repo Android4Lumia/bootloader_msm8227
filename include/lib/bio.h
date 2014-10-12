@@ -38,6 +38,7 @@ typedef struct bdev {
 	size_t block_size;
 	bnum_t block_count;
 	char *label;
+	bool is_gpt;
 	bool is_subdev;
 
 	/* function pointers */
