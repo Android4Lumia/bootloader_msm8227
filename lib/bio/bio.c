@@ -266,6 +266,26 @@ bdev_t *bio_open(const char *name)
 	return bdev;
 }
 
+bdev_t *bio_open_by_label(const char *label)
+{
+	bdev_t *bdev = NULL;
+
+	/* see if it's in our list */
+	bdev_t *entry;
+	mutex_acquire(&bdevs->lock);
+	list_for_every_entry(&bdevs->list, entry, bdev_t, node) {
+		DEBUG_ASSERT(entry->ref > 0);
+		if (!strcmp(entry->label, label)) {
+			bdev = entry;
+			bdev_inc_ref(bdev);
+			break;
+		}
+	}
+	mutex_release(&bdevs->lock);
+
+	return bdev;
+}
+
 void bio_close(bdev_t *dev)
 {
 	DEBUG_ASSERT(dev);
@@ -387,6 +407,7 @@ void bio_initialize_bdev(bdev_t *dev, const char *name, size_t block_size, bnum_
 	dev->block_count = block_count;
 	dev->size = (off_t)block_count * block_size;
 	dev->ref = 0;
+	dev->label = NULL;
 	dev->is_subdev = false;
 
 	/* set up the default hooks, the sub driver should override the block operations at least */
@@ -431,7 +452,7 @@ void bio_dump_devices(void)
 	bdev_t *entry;
 	mutex_acquire(&bdevs->lock);
 	list_for_every_entry(&bdevs->list, entry, bdev_t, node) {
-		printf("\t%s, size %lld, bsize %zd, ref %d, subdev=%d\n", entry->name, entry->size, entry->block_size, entry->ref, entry->is_subdev);
+		printf("\t%s, size %lld, bsize %zd, ref %d, label %s, subdev=%d\n", entry->name, entry->size, entry->block_size, entry->ref, entry->label, entry->is_subdev);
 	}
 	mutex_release(&bdevs->lock);
 }
