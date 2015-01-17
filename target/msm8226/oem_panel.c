@@ -472,6 +472,8 @@ int oem_panel_select(const char *panel_name, struct panel_struct *panelstruct,
 			panel_id = JDI_1080P_VIDEO_PANEL;
 		else if (hw_subtype == HW_PLATFORM_SUBTYPE_QVGA)
 			panel_id = NT35590_QVGA_CMD_PANEL;
+		else if (hw_subtype == HW_PLATFORM_SUBTYPE_G_QVGA)
+			panel_id = AUO_QVGA_CMD_PANEL;
 		else
 			panel_id = nt35590_panel_id;
 		break;
