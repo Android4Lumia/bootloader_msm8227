@@ -35,6 +35,8 @@
 #include <platform/iomap.h>
 #include <platform/timer.h>
 #include <bits.h>
+#include <assert.h>
+#include <err.h>
 
 #if MMC_BOOT_ADM
 #include "adm.h"
@@ -43,6 +45,14 @@
 #if MMC_BOOT_BAM
 #include "bam.h"
 #include "mmc_dml.h"
+#endif
+
+#if WITH_LIB_BIO
+#include <lib/bio.h>
+#endif
+
+#if WITH_LIB_PARTITION
+#include <lib/partition.h>
 #endif
 
 #ifndef NULL
@@ -2390,6 +2400,26 @@ void mmc_display_csd(void)
 	dprintf(SPEW, "temp_wp: %d\n", mmc_card.csd.temp_wp);
 }
 
+#if WITH_LIB_BIO
+static ssize_t mmc_bio_read_block(struct bdev *dev, void *buf, bnum_t block, uint count)
+{
+	uint32_t err = mmc_read((uint64_t)((uint64_t)block * dev->block_size), buf, count * dev->block_size);
+	if (err == MMC_BOOT_E_SUCCESS)
+		return count * dev->block_size;
+	else
+		return ERR_IO;
+}
+
+ssize_t mmc_bio_write_block(struct bdev *dev, const void *buf, bnum_t block, uint count)
+{
+	uint32_t err = mmc_write((uint64_t)((uint64_t)block * dev->block_size), count * dev->block_size, (unsigned int*)buf);
+	if (err == MMC_BOOT_E_SUCCESS)
+		return count * dev->block_size;
+	else
+		return ERR_IO;
+}
+#endif
+
 /*
  * Entry point to MMC boot process
  */
@@ -2432,6 +2462,20 @@ unsigned int mmc_boot_main(unsigned char slot, unsigned int base)
 
 	mmc_display_csd();
 	mmc_display_ext_csd();
+
+#if WITH_LIB_BIO
+	// register bio dev
+	bdev_t* dev = calloc(sizeof(bdev_t), 1);
+	ASSERT(dev);
+	bio_initialize_bdev(dev, "hd0", 512, mmc_get_device_capacity() / 512);
+	dev->read_block = &mmc_bio_read_block;
+	dev->write_block = &mmc_bio_write_block;
+	bio_register_device(dev);
+
+#if WITH_LIB_PARTITION
+	partition_publish("hd0", 0);
+#endif
+#endif
 
 	mmc_ret = partition_read_table();
 	return mmc_ret;
