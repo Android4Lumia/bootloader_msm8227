@@ -253,6 +253,11 @@ static inline struct list_node* list_next_wrap(struct list_node *list, struct li
 		&(entry)->member != (list);\
 		(entry) = containerof((entry)->member.next, type, member))
 
+#define list_for_every_entry_reverse(list, entry, type, member) \
+    for((entry) = containerof((list)->prev, type, member);\
+        &(entry)->member != (list);\
+        (entry) = containerof((entry)->member.prev, type, member))
+
 // iterates over the list in a safe way for deletion of current node
 // entry and temp_entry should be the container structure type *
 #define list_for_every_entry_safe(list, entry, temp_entry, type, member) \

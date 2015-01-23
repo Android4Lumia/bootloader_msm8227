@@ -387,6 +387,7 @@ void bio_initialize_bdev(bdev_t *dev, const char *name, size_t block_size, bnum_
 	dev->block_count = block_count;
 	dev->size = (off_t)block_count * block_size;
 	dev->ref = 0;
+	dev->is_subdev = false;
 
 	/* set up the default hooks, the sub driver should override the block operations at least */
 	dev->read = bio_default_read;
@@ -430,9 +431,18 @@ void bio_dump_devices(void)
 	bdev_t *entry;
 	mutex_acquire(&bdevs->lock);
 	list_for_every_entry(&bdevs->list, entry, bdev_t, node) {
-		printf("\t%s, size %lld, bsize %zd, ref %d\n", entry->name, entry->size, entry->block_size, entry->ref);
+		printf("\t%s, size %lld, bsize %zd, ref %d, subdev=%d\n", entry->name, entry->size, entry->block_size, entry->ref, entry->is_subdev);
 	}
 	mutex_release(&bdevs->lock);
+}
+
+void bio_foreach(void (*cb)(void*, const char*), void* pdata, bool subdevs)
+{
+	bdev_t *entry;
+	list_for_every_entry_reverse(&bdevs->list, entry, bdev_t, node) {
+		if(!subdevs && entry->is_subdev) continue;
+		cb(pdata, entry->name);
+	}
 }
 
 void bio_init(void)
