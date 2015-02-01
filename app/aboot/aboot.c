@@ -3019,6 +3019,46 @@ static void publish_getvar_partition_info(struct getvar_partition_info *info, ui
 	}
 }
 
+static char* get_human_size(double size, char *buf) {
+	int i = 0;
+	const char* units[] = {"B", "kB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"};
+	while (size>=1024) {
+		size/=1024;
+		i++;
+	}
+	sprintf(buf, "%.4u%.2s", (uint32_t)size, units[i]);
+	return buf;
+}
+
+static void cmd_oem_ram_ptable(const char *arg, void *data, unsigned sz)
+{
+	struct smem_ram_ptable ram_ptable;
+	unsigned int i;
+	char buf[MAX_RSP_SIZE];
+
+	// Make sure RAM partition table is initialized
+	if(!smem_ram_ptable_init(&ram_ptable)) {
+		fastboot_fail("error reading RAM ptable");
+		return;
+	}
+
+	// print header
+	fastboot_info("ID\tAddress              \t  Size\tAttr\tCat\tDomain\tType\tParts");
+
+	// print table
+	for(i = 0; i<ram_ptable.len; i++) {
+		char sizebuf[1024];
+		snprintf(buf, sizeof(buf), "%u:\t0x%08x-0x%08x\t%s\t%s\t%s\t%s\t%s\t%u", i,
+				ram_ptable.parts[i].start, ram_ptable.parts[i].start+ram_ptable.parts[i].size,
+				get_human_size(ram_ptable.parts[i].size, sizebuf), smem_attr2str(ram_ptable.parts[i].attr),
+				smem_category2str(ram_ptable.parts[i].category), smem_domain2str(ram_ptable.parts[i].domain),
+				smem_type2str(ram_ptable.parts[i].type), ram_ptable.parts[i].num_partitions);
+		fastboot_info(buf);
+	}
+
+	fastboot_okay("");
+}
+
 /* register commands and variables for fastboot */
 void aboot_fastboot_register_commands(void)
 {
@@ -3050,6 +3090,7 @@ void aboot_fastboot_register_commands(void)
 #if WITH_DEBUG_LOG_BUF
 											{"oem lk_log", cmd_oem_lk_log},
 #endif
+											{"oem ram-ptable", cmd_oem_ram_ptable},
 #endif
 										  };
 

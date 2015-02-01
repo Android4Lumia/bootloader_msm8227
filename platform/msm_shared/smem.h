@@ -637,4 +637,10 @@ uint32_t smem_get_ram_ptable_version(void);
 uint32_t smem_get_ram_ptable_len(void);
 void* smem_get_alloc_entry(smem_mem_type_t type, uint32_t* size);
 uint32_t get_ddr_start();
+
+const char* smem_attr2str(int i);
+const char* smem_category2str(int i);
+const char* smem_domain2str(int i);
+const char* smem_type2str(int i);
+
 #endif				/* __PLATFORM_MSM_SHARED_SMEM_H */

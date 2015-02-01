@@ -170,3 +170,51 @@ smem_read_alloc_entry_offset(smem_mem_type_t type, void *buf, int len,
 
 	return 0;
 }
+
+const char* smem_attr2str(int i) {
+	switch(i) {
+		case DEFAULT_ATTRB: return "default";
+		case READ_ONLY: return "ro";
+		case READWRITE: return "rw";
+		default: return "-";
+	}
+}
+
+const char* smem_category2str(int i) {
+	switch(i) {
+		case DEFAULT_CATEGORY: return "default";
+		case SMI: return "smi";
+		case EBI1: return "ebi1";
+		case EBI2: return "ebi2";
+		case QDSP6: return "qdsp6";
+		case IRAM: return "iram";
+		case IMEM: return "imem";
+		case EBI0_CS0: return "ebi0_cs0";
+		case EBI0_CS1: return "ebi0_cs1";
+		case EBI1_CS0: return "ebi1_cs0";
+		case EBI1_CS1: return "ebi1_cs1";
+		case SDRAM: return "sdram";
+		default: return "-";
+	}
+}
+
+const char* smem_domain2str(int i) {
+	switch(i) {
+		case DEFAULT_DOMAIN: return "default";
+		case APPS_DOMAIN: return "apps";
+		case MODEM_DOMAIN: return "modem";
+		case SHARED_DOMAIN: return "shared";
+		default: return "-";
+	}
+}
+
+const char* smem_type2str(int i) {
+	switch(i) {
+		case SYS_MEMORY: return "sys";
+		case BOOT_REGION_MEMORY1: return "boot1";
+		case BOOT_REGION_MEMORY2: return "boot2";
+		case APPSBL_MEMORY: return "appsbl";
+		case APPS_MEMORY: return "apps";
+		default: return "-";
+	}
+}
