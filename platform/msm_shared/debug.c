@@ -141,7 +141,7 @@ int dgetc(char *c, bool wait)
 #if WITH_DEBUG_DCC
 	n = dcc_getc();
 #elif WITH_DEBUG_UART
-	n = uart_getc(0, 0);
+	n = uart_getc(0, wait);
 #else
 	n = -1;
 #endif
