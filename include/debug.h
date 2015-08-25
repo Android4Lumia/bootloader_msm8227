@@ -60,6 +60,7 @@ int _dvprintf(const char *fmt, va_list ap);
 
 /* input */
 int dgetc(char *c, bool wait);
+int dtstc(void);
 
 /* systemwide halts */
 void halt(void);
