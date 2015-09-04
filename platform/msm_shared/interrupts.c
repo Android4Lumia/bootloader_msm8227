@@ -33,6 +33,10 @@
 #include <debug.h>
 #include <qgic.h>
 
+#ifdef WITH_KERNEL_UEFIAPI
+#include <uefiapi.h>
+#endif
+
 extern int target_supports_qgic();
 
 enum handler_return platform_irq(struct arm_iframe *frame)
@@ -61,6 +65,11 @@ void platform_fiq(struct arm_iframe *frame)
 
 status_t mask_interrupt(unsigned int vector)
 {
+#ifdef WITH_KERNEL_UEFIAPI
+	if(uefiapi.int_mask)
+		return uefiapi.int_mask(vector);
+#endif
+
 #if TARGET_USES_GIC_VIC
 	if(target_supports_qgic())
 		return gic_mask_interrupt(vector);
@@ -73,6 +82,11 @@ status_t mask_interrupt(unsigned int vector)
 
 status_t unmask_interrupt(unsigned int vector)
 {
+#ifdef WITH_KERNEL_UEFIAPI
+	if(uefiapi.int_unmask)
+		return uefiapi.int_unmask(vector);
+#endif
+
 #if TARGET_USES_GIC_VIC
 	if(target_supports_qgic())
 		return gic_unmask_interrupt(vector);
@@ -85,6 +99,12 @@ status_t unmask_interrupt(unsigned int vector)
 
 void register_int_handler(unsigned int vector, int_handler func, void *arg)
 {
+#ifdef WITH_KERNEL_UEFIAPI
+	ASSERT(uefiapi.int_register_handler);
+	uefiapi.int_register_handler(vector, (lkapi_int_handler)func, arg);
+	return;
+#endif
+
 #if TARGET_USES_GIC_VIC
 	if(target_supports_qgic())
 		gic_register_int_handler(vector, func, arg);

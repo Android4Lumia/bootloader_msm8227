@@ -30,6 +30,7 @@
 .globl _start
 _start:
 	b	reset
+#ifndef WITH_KERNEL_UEFIAPI
 	b	arm_undefined
 	b	arm_syscall
 	b	arm_prefetch_abort
@@ -37,6 +38,7 @@ _start:
 	b	arm_reserved
 	b	arm_irq
 	b	arm_fiq
+#endif
 
 reset:
 	adr r7, lk_boot_args
@@ -128,6 +130,7 @@ lk_boot_args:
 	.word 0
 
 .Lstack_setup:
+#ifndef WITH_KERNEL_UEFIAPI
 	/* set up the stack for irq, fiq, abort, undefined, system/user, and lastly supervisor mode */
 	mrs     r0, cpsr
 	bic     r0, r0, #0x1f
@@ -155,6 +158,9 @@ lk_boot_args:
 
 	orr		r1, r0, #0x13 // supervisor
 	msr		cpsr_c, r1
+#else
+	ldr		r2, =abort_stack_top
+#endif
 	mov		sp, r2
 
 	/* copy the initialized data segment out of rom if necessary */
