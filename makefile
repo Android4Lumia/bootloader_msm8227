@@ -123,6 +123,9 @@ EXTRA_BUILDDEPS :=
 EXTRA_CLEANDEPS := 
 
 include project/$(PROJECT).mk
+ifneq ($(LK_EXTERNAL_MAKEFILE),)
+include $(LK_EXTERNAL_MAKEFILE)
+endif
 include target/$(TARGET)/rules.mk
 include target/$(TARGET)/tools/makefile
 include platform/$(PLATFORM)/rules.mk
@@ -198,7 +201,7 @@ $(CONFIGHEADER): configheader
 	echo \#ifndef __CONFIG_H > $(CONFIGHEADER).tmp; \
 	echo \#define __CONFIG_H >> $(CONFIGHEADER).tmp; \
 	for d in `echo $(DEFINES) | tr [:lower:] [:upper:]`; do \
-		echo "#define $$d" | sed "s/=/\ /g;s/-/_/g;s/\//_/g" >> $(CONFIGHEADER).tmp; \
+		echo "#define $$d" | sed "s/=/\ /g;s/-/_/g;s/\//_/g;s/\./_/g" >> $(CONFIGHEADER).tmp; \
 	done; \
 	echo \#endif >> $(CONFIGHEADER).tmp; \
 	if [ -f "$(CONFIGHEADER)" ]; then \
