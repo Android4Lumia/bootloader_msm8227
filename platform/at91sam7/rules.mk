@@ -9,8 +9,8 @@
 #
 
 # ROMBASE, MEMBASE, and MEMSIZE are required for the linker script
-ROMBASE := 0x0
-MEMBASE := 0x200000
+ROMBASE ?= 0x0
+MEMBASE ?= 0x200000
 
 TMP_CFG := bad
 ifeq ($(AT91CHIP), sam7x256)

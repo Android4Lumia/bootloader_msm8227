@@ -4,8 +4,8 @@ INCLUDES += -I$(LOCAL_DIR)/include -I$(LK_TOP_DIR)/platform/msm_shared
 
 PLATFORM := mdm9x25
 
-MEMBASE                             := 0x07E00000
-MEMSIZE                             := 0x00100000 # 1MB
+MEMBASE                             ?= 0x07E00000
+MEMSIZE                             ?= 0x00100000 # 1MB
 SCRATCH_ADDR                        := 0x00300000
 SCRATCH_REGION1                     := 0x00300000
 SCRATCH_REGION1_SIZE                := 0x01000000 #16 MB

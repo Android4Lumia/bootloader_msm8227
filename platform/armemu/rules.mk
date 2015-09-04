@@ -29,8 +29,8 @@ MODULES += \
 	lib/gfx
 
 
-MEMBASE := 0x0
-MEMSIZE := 0x400000	# 4MB
+MEMBASE ?= 0x0
+MEMSIZE ?= 0x400000	# 4MB
 
 LINKER_SCRIPT += \
 	$(BUILDDIR)/system-onesegment.ld
