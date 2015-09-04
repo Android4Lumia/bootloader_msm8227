@@ -31,6 +31,9 @@
  * SUCH DAMAGE.
  */
 
+#include <reg.h>
+#include <err.h>
+#include <bits.h>
 #include <assert.h>
 #include <bits.h>
 #include <stdlib.h>
@@ -467,6 +470,56 @@ done:
 	return INT_RESCHEDULE;
 }
 
+#ifdef WITH_KERNEL_UEFIAPI
+static int
+report_qwerty_gpio_keypad(key_event_source_t* source)
+{
+	int i=0;
+	int num =0;
+	uint8_t key_status;
+	struct qwerty_keypad_info *keypad = qwerty_keypad->keypad_info;
+
+	num = keypad->mapsize;
+
+	for(i=0; i < num; i++)
+	{
+		/*continue if not interested in key*/
+		if(!keypad->keymap[i])
+			continue;
+
+		/*read key gpio*/
+		keypad->key_gpio_get(keypad->gpiomap[i], &key_status);
+
+		/*Post event if key pressed*/
+		if(keys_set_report_key(source, keypad->keymap[i], key_status)) {
+			switch(keypad->keymap[i]) {
+				case KEY_VOLUMEUP:
+					keys_post_event(0x1b, key_status);
+					keys_post_event(0x5b, key_status);
+					keys_post_event(0x41, key_status);
+					break;
+				case KEY_VOLUMEDOWN:
+					keys_post_event(0x1b, key_status);
+					keys_post_event(0x5b, key_status);
+					keys_post_event(0x42, key_status);
+					break;
+			}
+		}
+	}
+
+	return 0;
+}
+
+static int event_source_poll(key_event_source_t* source) {
+	report_qwerty_gpio_keypad(source);
+	return NO_ERROR;
+}
+
+static key_event_source_t event_source = {
+	.poll = event_source_poll
+};
+#endif
+
 void ssbi_gpio_keypad_init(struct qwerty_keypad_info  *qwerty_kp)
 {
 	int len;
@@ -478,6 +531,11 @@ void ssbi_gpio_keypad_init(struct qwerty_keypad_info  *qwerty_kp)
 	memset(qwerty_keypad, 0, len);
 	qwerty_keypad->keypad_info = qwerty_kp;
 
+#ifdef WITH_KERNEL_UEFIAPI
+	// register event source
+	event_source.pdata = qwerty_kp;
+	keys_add_source(&event_source);
+#else
 	event_init(&qwerty_keypad->full_scan, false, EVENT_FLAG_AUTOUNSIGNAL);
 	timer_initialize(&qwerty_keypad->timer);
 
@@ -485,6 +543,7 @@ void ssbi_gpio_keypad_init(struct qwerty_keypad_info  *qwerty_kp)
 
 	/* wait for the keypad to complete one full scan */
 	event_wait(&qwerty_keypad->full_scan);
+#endif
 }
 
 void pmic_write(unsigned address, unsigned data)
