@@ -33,6 +33,8 @@
 #define __DEV_KEYS_H
 
 #include <sys/types.h>
+#include <list.h>
+#include <platform.h>
 
 /* these are just the ascii values for the chars */
 #define KEY_0		0x30
@@ -84,8 +86,70 @@
 
 #define MAX_KEYS	0x1ff
 
+typedef struct key_event_source key_event_source_t;
+typedef int (*key_event_poll_t)(key_event_source_t* source);
+
+typedef struct {
+	bool pressed;
+	time_t time;
+	bool repeat;
+} keymap_t;
+
+struct key_event_source {
+	struct list_node node;
+	void* pdata;
+
+	time_t last;
+	time_t delta;
+	key_event_poll_t poll;
+	keymap_t keymap[MAX_KEYS];
+};
+
 void keys_init(void);
-void keys_post_event(uint16_t code, int16_t value);
+int keys_poll(void);
+void keys_add_source(key_event_source_t* source);
+int keys_post_event(uint16_t code, int16_t value);
 int keys_get_state(uint16_t code);
+void keys_clear_all(void);
+int keys_get_next(uint16_t* code, uint16_t* value);
+int keys_has_next(void);
+
+static inline int keys_set_report_key(key_event_source_t* source, uint16_t code, uint16_t value) {
+	// update key time
+	source->keymap[code].time+=source->delta;
+
+	if(value) {
+		bool report = false;
+
+		// change to pressed
+		if(!source->keymap[code].pressed) {
+			report=true;
+			source->keymap[code].time=0;
+			source->keymap[code].pressed=true;
+		}
+
+		// key repeat
+		if((source->keymap[code].repeat && source->keymap[code].time>=200) || source->keymap[code].time>=500) {
+			report=true;
+			source->keymap[code].time=0;
+			source->keymap[code].repeat=true;
+		}
+
+		if(report){
+			 return 1;
+		}
+	}
+
+	// change to released
+	else if(source->keymap[code].pressed && source->keymap[code].time>200) {
+		source->keymap[code].pressed=false;
+		source->keymap[code].time=0;
+		source->keymap[code].repeat=false;
+
+		return 1;
+	}
+
+	return 0;
+}
 
 #endif /* __DEV_KEYS_H */
