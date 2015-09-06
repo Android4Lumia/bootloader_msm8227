@@ -55,12 +55,15 @@ enum msm_mdp_hw_revision {
 	MDP_REV_22,
 	MDP_REV_30,
 	MDP_REV_303,
+	MDP_REV_304,
+	MDP_REV_305,
 	MDP_REV_31,
 	MDP_REV_40,
 	MDP_REV_41,
 	MDP_REV_42,
 	MDP_REV_43,
 	MDP_REV_44,
+	MDP_REV_50,
 };
 
 /* panel info type */
