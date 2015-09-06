@@ -3,6 +3,7 @@
 #include <malloc.h>
 #include <board.h>
 #include <atagparse.h>
+#include <cmdline.h>
 #include "atags.h"
 
 #if DEVICE_TREE
@@ -506,6 +507,9 @@ void atag_parse(void) {
 		lk_boot_args[3]
 	);
 
+	// init cmdline lib
+	cmdline_init();
+
 	// machine type
 	machinetype = lk_boot_args[1];
 	dprintf(INFO, "machinetype: %u\n", machinetype);
@@ -535,4 +539,7 @@ void atag_parse(void) {
 
 	dprintf(INFO, "cmdline=[%s]\n", command_line);
 	dprintf(INFO, "[orig] platform_id=%d variant_id=%d soc_rev=%X\n", board_platform_id(), board_hardware_id(), board_soc_version());
+
+	// add to global cmdline lib
+	cmdline_addall(command_line, true);
 }

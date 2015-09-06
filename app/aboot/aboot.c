@@ -67,6 +67,8 @@
 #include <dev_tree.h>
 #endif
 
+#include <cmdline.h>
+
 #include "image_verify.h"
 #include "recovery.h"
 #include "bootimg.h"
@@ -625,6 +627,12 @@ void boot_linux(void *kernel, unsigned *tags,
 	ramdisk = (void *)PA((addr_t)ramdisk);
 
 	final_cmdline = update_cmdline((const char*)cmdline);
+	cmdline_addall((char*)final_cmdline, false);
+	free(final_cmdline);
+
+	int len = cmdline_length();
+	final_cmdline = malloc(len);
+	cmdline_generate((char*)final_cmdline, len);
 
 #if DEVICE_TREE
 	dprintf(INFO, "Updating device tree: start\n");
