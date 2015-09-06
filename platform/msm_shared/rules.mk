@@ -1,5 +1,10 @@
 LOCAL_DIR := $(GET_LOCAL_DIR)
 
+ifeq ($(ENABLE_LEGACY_DISPLAY_SUPPORT),1)
+INCLUDES += \
+			-I$(LOCAL_DIR)/display_legacy/include
+endif
+
 INCLUDES += \
 			-I$(LOCAL_DIR)/include -I$(LK_TOP_DIR)/dev/panel/msm
 
@@ -81,7 +86,7 @@ endif
 
 ifeq ($(PLATFORM),msm8960)
 	OBJS += $(LOCAL_DIR)/hdmi.o \
-			$(LOCAL_DIR)/mipi_dsi.o \
+			$(LOCAL_DIR)/display_legacy/mipi_dsi.o \
 			$(LOCAL_DIR)/i2c_qup.o \
 			$(LOCAL_DIR)/uart_dm.o \
 			$(LOCAL_DIR)/qgic.o \
@@ -96,9 +101,9 @@ ifeq ($(PLATFORM),msm8960)
 			$(LOCAL_DIR)/clock.o \
 			$(LOCAL_DIR)/clock_pll.o \
 			$(LOCAL_DIR)/board.o \
-			$(LOCAL_DIR)/display.o \
+			$(LOCAL_DIR)/display_legacy/display.o \
 			$(LOCAL_DIR)/lvds.o \
-			$(LOCAL_DIR)/mipi_dsi_phy.o \
+			$(LOCAL_DIR)/display_legacy/mipi_dsi_phy.o \
 			$(LOCAL_DIR)/timer.o \
 			$(LOCAL_DIR)/mdp_lcdc.o \
 			$(LOCAL_DIR)/nand.o
