@@ -3059,6 +3059,33 @@ static void cmd_oem_ram_ptable(const char *arg, void *data, unsigned sz)
 	fastboot_okay("");
 }
 
+static void cmd_oem_fbconfig(const char *arg, void *data, unsigned sz)
+{
+	struct fbcon_config* config = fbcon_display();
+	char buf[1024];
+
+	fastboot_info("fbcon_config:");
+
+	snprintf(buf, sizeof(buf), "\tbase: %p (end: %p)", (void*)config->base, config->base + (config->width * config->height * config->bpp/3));
+	fastboot_info(buf);
+	snprintf(buf, sizeof(buf), "\twidth: %u", config->width);
+	fastboot_info(buf);
+	snprintf(buf, sizeof(buf), "\theight: %u", config->height);
+	fastboot_info(buf);
+	snprintf(buf, sizeof(buf), "\tstride: %u", config->stride);
+	fastboot_info(buf);
+	snprintf(buf, sizeof(buf), "\tbpp: %u", config->bpp);
+	fastboot_info(buf);
+	snprintf(buf, sizeof(buf), "\tformat: %u", config->format);
+	fastboot_info(buf);
+	snprintf(buf, sizeof(buf), "\tupdate_start: %p", config->update_start);
+	fastboot_info(buf);
+	snprintf(buf, sizeof(buf), "\tupdate_done: %p", config->update_done);
+	fastboot_info(buf);
+
+	fastboot_okay("");
+}
+
 /* register commands and variables for fastboot */
 void aboot_fastboot_register_commands(void)
 {
@@ -3091,6 +3118,7 @@ void aboot_fastboot_register_commands(void)
 											{"oem lk_log", cmd_oem_lk_log},
 #endif
 											{"oem ram-ptable", cmd_oem_ram_ptable},
+											{"oem fbconfig", cmd_oem_fbconfig},
 #endif
 										  };
 
