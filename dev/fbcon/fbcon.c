@@ -90,7 +90,7 @@ static void fbcon_drawglyph(uint16_t *pixels, uint16_t paint, unsigned stride,
 	}
 }
 
-static void fbcon_flush(void)
+void fbcon_flush(void)
 {
 	unsigned total_x, total_y;
 	unsigned bytes_per_bpp;

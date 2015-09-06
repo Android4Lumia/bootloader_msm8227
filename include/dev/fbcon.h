@@ -74,5 +74,6 @@ void fbcon_putc(char c);
 void fbcon_clear(void);
 struct fbcon_config* fbcon_display(void);
 void fbcon_extract_to_screen(logo_img_header *header, void* address);
+void fbcon_flush(void);
 
 #endif /* __DEV_FBCON_H */
