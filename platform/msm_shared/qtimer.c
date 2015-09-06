@@ -56,6 +56,11 @@ void qtimer_uninit()
 	qtimer_disable();
 }
 
+void platform_uninit_timer(void)
+{
+	qtimer_uninit();
+}
+
 /* Blocking function to wait until the specified ticks of the timer.
  * Note: ticks to wait for cannot be more than 56 bit.
  *          Should be sufficient for all practical purposes.
