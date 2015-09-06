@@ -847,3 +847,11 @@ int mipi_cmd_trigger()
 
 	return NO_ERROR;
 }
+
+void mipi_update_sw_trigger(void) {
+	mdp_start_dma();
+	dsb();
+	mdelay(10);
+	dsb();
+	writel(0x1, DSI_CMD_MODE_MDP_SW_TRIGGER);
+}

@@ -28,6 +28,8 @@
 #include <compiler.h>
 #include <dload_util.h>
 #include <sdhci_msm.h>
+#include <mdp4.h>
+#include <malloc.h>
 
 #define EXPAND(NAME) #NAME
 #define TARGET(NAME) EXPAND(NAME)
@@ -172,6 +174,10 @@ __WEAK bool target_display_panel_node(char *panel_name, char *pbuf,
 
 __WEAK void target_display_init(const char *panel_name)
 {
+	struct fbcon_config* config = calloc(sizeof(struct fbcon_config), 1);
+	mdp_dump_config(config);
+	fbcon_setup(config);
+	display_image_on_screen();
 }
 
 __WEAK void target_display_shutdown(void)

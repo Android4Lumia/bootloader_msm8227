@@ -58,3 +58,4 @@ int mdp_get_revision();
 int mdp_edp_config(struct msm_panel_info *pinfo, struct fbcon_config *fb);
 int mdp_edp_on(struct msm_panel_info *pinfo);
 int mdp_edp_off(void);
+int mdp_dump_config(struct fbcon_config *fb);

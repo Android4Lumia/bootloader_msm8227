@@ -43,5 +43,9 @@ endif
 OBJS += \
 	$(LOCAL_DIR)/init.o \
 	$(LOCAL_DIR)/atags.o \
-	$(LOCAL_DIR)/keypad.o \
-	$(LOCAL_DIR)/target_display.o
+	$(LOCAL_DIR)/keypad.o
+
+ifneq ($(DISPLAY_2NDSTAGE),1)
+OBJS += \
+    $(LOCAL_DIR)/target_display.o
+endif

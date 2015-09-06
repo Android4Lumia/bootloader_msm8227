@@ -409,6 +409,29 @@ int mdp_get_revision()
 	return mdp_rev;
 }
 
+int mdp_dump_config(struct fbcon_config *fb) {
+	fb->base = (void*) readl(MDP_DMA_P_BUF_ADDR);
+	fb->width = readl(MDP_DMA_P_BUF_Y_STRIDE)/3;
+	fb->height = readl(MDP_DMA_P_SIZE)>>16;
+	fb->stride = fb->width;
+	fb->bpp = 24;
+	fb->format = FB_FORMAT_RGB888;
+
+	uint32_t trigger_ctrl = readl(DSI_TRIG_CTRL);
+	int te_sel = (trigger_ctrl >> 31) & 1;
+	int mdp_trigger = (trigger_ctrl >> 4) & 4;
+	int dma_trigger = (trigger_ctrl) & 4;
+
+	dprintf(INFO, "%s: trigger_ctrl=0x%x te_sel=%d mdp_trigger=%d dma_trigger=%d\n",
+			__func__, trigger_ctrl, te_sel, mdp_trigger, dma_trigger);
+
+	if(mdp_trigger == DSI_CMD_TRIGGER_SW) {
+		fb->update_start = mipi_update_sw_trigger;
+	}
+
+	return NO_ERROR;
+}
+
 int mdp_edp_config(struct msm_panel_info *pinfo, struct fbcon_config *fb)
 {
 	return NO_ERROR;
