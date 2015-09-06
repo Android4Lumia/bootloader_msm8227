@@ -117,7 +117,7 @@ void mdp4_display_intf_sel(int output, int intf)
 	writel(bits, MSM_MDP_BASE1 + 0x0038);	/* MDP_DISP_INTF_SEL */
 }
 
-void display_init(void)
+void target_display_init(const char *panel_name)
 {
 	struct fbcon_config *fb_cfg;
 
@@ -142,7 +142,7 @@ void display_init(void)
 #endif
 }
 
-void display_shutdown(void)
+void target_display_shutdown(void)
 {
 #if DISPLAY_TYPE_LCDC
 	/* Turning off LCDC */

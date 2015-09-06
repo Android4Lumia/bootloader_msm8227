@@ -60,7 +60,7 @@ void platform_init(void)
 #endif
 }
 
-void display_init(void)
+void target_display_init(const char *panel_name)
 {
         struct fbcon_config *fb_cfg;
         fb_cfg = lcdc_init();

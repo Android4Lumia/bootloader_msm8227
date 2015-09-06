@@ -120,7 +120,7 @@ void platform_init(void)
 	dprintf(INFO, "platform_init()\n");
 }
 
-void display_init(void)
+void target_display_init(const char *panel_name)
 {
 	struct fbcon_config *fb_cfg;
 #if DISPLAY_TYPE_LCDC
@@ -159,7 +159,7 @@ void display_init(void)
 #endif
 }
 
-void display_shutdown(void)
+void target_display_shutdown(void)
 {
 #if DISPLAY_TYPE_LCDC
 	unsigned rc = 0;

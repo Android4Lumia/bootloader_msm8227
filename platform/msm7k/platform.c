@@ -69,7 +69,7 @@ void platform_init(void)
 	acpu_clock_init();
 }
 
-void display_init(void)
+void target_display_init(const char *panel_name)
 {
 #if DISPLAY_TYPE_MDDI
 	fb_config = mddi_init();
