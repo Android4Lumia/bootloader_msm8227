@@ -47,6 +47,11 @@
 #include "include/panel.h"
 #include "target/display.h"
 
+#if !defined(DSI0_REGULATOR_BASE) && !defined(DSI1_REGULATOR_BASE)
+#define DSI0_REGULATOR_BASE         (DSI0_PHY_BASE + 0x0280)
+#define DSI1_REGULATOR_BASE         (DSI0_PHY_BASE + 0x0280)
+#endif
+
 static int dsi_platform_base_offset_adjust(uint32_t base)
 {
 	return target_display_get_base_offset(base);

@@ -66,6 +66,7 @@ int mdp_dsi_video_config(struct msm_panel_info *pinfo,
 	}
 	vsync_period = vsync_period_intmd * hsync_period;
 
+#ifdef MDP_DMA_P_QOS_REMAPPER
 	/* Program QOS remapper settings */
 	writel(0x1A9, MDP_DMA_P_QOS_REMAPPER);
 	writel(0x0, MDP_DMA_P_WATERMARK_0);
@@ -77,6 +78,7 @@ int mdp_dsi_video_config(struct msm_panel_info *pinfo,
 		writel(0x00FF, MDP_PANIC_LUT0);
 	writel(0x1, MDP_PANIC_ROBUST_CTRL);
 	writel(0xFF00, MDP_ROBUST_LUT);
+#endif
 
 	// ------------- programming MDP_DMA_P_CONFIG ---------------------
 	writel(0x1800bf, MDP_DMA_P_CONFIG);	// rgb888
@@ -122,6 +124,7 @@ int mdp_dsi_cmd_config(struct msm_panel_info *pinfo,
 	unsigned short pack_pattern = 0x21;
 	unsigned char ystride = 3;
 
+#ifdef MDP_DMA_P_QOS_REMAPPER
 	/* Program QOS remapper settings */
 	writel(0x1A9, MDP_DMA_P_QOS_REMAPPER);
 	writel(0x0, MDP_DMA_P_WATERMARK_0);
@@ -133,6 +136,7 @@ int mdp_dsi_cmd_config(struct msm_panel_info *pinfo,
 		writel(0x00FF, MDP_PANIC_LUT0);
 	writel(0x1, MDP_PANIC_ROBUST_CTRL);
 	writel(0xFF00, MDP_ROBUST_LUT);
+#endif
 
 	writel(0x03ffffff, MDP_INTR_ENABLE);
 
