@@ -34,6 +34,7 @@
 #include <kernel/timer.h>
 #include <kernel/dpc.h>
 #include <boot_stats.h>
+#include <atagparse.h>
 
 extern void *__ctor_list;
 extern void *__ctor_end;
@@ -122,6 +123,8 @@ int main(void);
 static int bootstrap2(void *arg)
 {
 	dprintf(SPEW, "top of bootstrap2()\n");
+
+	atag_parse();
 
 	arch_init();
 
