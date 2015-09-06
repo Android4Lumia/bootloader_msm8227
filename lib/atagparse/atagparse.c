@@ -22,6 +22,7 @@ static char* command_line = NULL;
 static uint32_t platform_id = 0;
 static uint32_t variant_id = 0;
 static uint32_t soc_rev = 0;
+static bool has_board_info = false;
 
 uint32_t lkargs_get_machinetype(void) {
 	return machinetype;
@@ -484,11 +485,16 @@ static int parse_fdt(void* fdt)
 		platform_id = dt_entry->platform_id;
 		variant_id = dt_entry->variant_id;
 		soc_rev = dt_entry->soc_rev;
+		has_board_info = true;
 
 		dprintf(INFO, "platform_id=%d variant_id=%d soc_rev=%X\n", platform_id, variant_id, soc_rev);
 	}
 
 	return 0;
+}
+
+bool lkargs_has_board_info(void) {
+	return has_board_info;
 }
 #endif
 
@@ -528,4 +534,5 @@ void atag_parse(void) {
 	}
 
 	dprintf(INFO, "cmdline=[%s]\n", command_line);
+	dprintf(INFO, "[orig] platform_id=%d variant_id=%d soc_rev=%X\n", board_platform_id(), board_hardware_id(), board_soc_version());
 }

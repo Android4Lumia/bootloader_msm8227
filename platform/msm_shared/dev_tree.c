@@ -39,6 +39,29 @@
 #include <kernel/thread.h>
 #include <target.h>
 #include <partial_goods.h>
+#include <atagparse.h>
+
+static uint32_t hook_platform_id(void) {
+	if(lkargs_has_board_info())
+		return lkargs_get_platform_id();
+	else	return board_platform_id();
+}
+
+static uint32_t hook_hardware_id(void) {
+	if(lkargs_has_board_info())
+		return lkargs_get_variant_id();
+	else	return board_hardware_id();
+}
+
+static uint32_t hook_soc_version(void) {
+	if(lkargs_has_board_info())
+		return lkargs_get_soc_rev();
+	else	return board_soc_version();
+}
+
+#define board_platform_id hook_platform_id
+#define board_hardware_id hook_hardware_id
+#define board_soc_version hook_soc_version
 
 struct dt_entry_v1
 {
