@@ -6,7 +6,7 @@ CPU     := generic
 
 DEFINES += ARM_CPU_CORE_A7
 
-INCLUDES += -I$(LOCAL_DIR)/include -I$(LK_TOP_DIR)/platform/msm_shared/include
+INCLUDES += -I$(LOCAL_DIR)/include
 
 OBJS += \
 	$(LOCAL_DIR)/platform.o \

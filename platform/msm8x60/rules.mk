@@ -16,7 +16,7 @@ DEFINES += WITH_CPU_EARLY_INIT=0 WITH_CPU_WARM_BOOT=0 \
 
 DEFINES += QT_8660_KEYPAD_HW_BUG=1
 
-INCLUDES += -I$(LOCAL_DIR)/include -I$(LK_TOP_DIR)/platform/msm_shared/include
+INCLUDES += -I$(LOCAL_DIR)/include
 
 DEVS += fbcon
 MODULES += dev/fbcon

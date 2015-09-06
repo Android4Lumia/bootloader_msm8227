@@ -12,7 +12,7 @@ DEFINES += PERIPH_BLK_BLSP=1
 DEFINES += WITH_CPU_EARLY_INIT=0 WITH_CPU_WARM_BOOT=0 \
 	   MMC_SLOT=$(MMC_SLOT)
 
-INCLUDES += -I$(LOCAL_DIR)/include -I$(LK_TOP_DIR)/platform/msm_shared/include
+INCLUDES += -I$(LOCAL_DIR)/include
 
 # Disabling stack-protection for lk
 # as it's not yet supported by bootloader's libc

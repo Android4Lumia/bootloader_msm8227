@@ -10,7 +10,7 @@ DEFINES += ARM_CPU_CORE_A5
 MMC_SLOT := 3
 DEFINES += WITH_CPU_EARLY_INIT=1 MMC_SLOT=$(MMC_SLOT)
 
-INCLUDES += -I$(LOCAL_DIR)/include -I$(LK_TOP_DIR)/platform/msm_shared/include
+INCLUDES += -I$(LOCAL_DIR)/include
 
 MODULES += dev/fbcon
 
