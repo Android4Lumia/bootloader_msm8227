@@ -99,8 +99,13 @@ unsigned int apq8064_qwerty_keymap[] = {
 };
 
 unsigned int apq8064_pm8921_keys_gpiomap[] = {
+#ifdef TARGET_XIAOMI_ARIES
+	[KEYMAP_INDEX(0, 0)] = PM_GPIO(1),	/* Volume key on the device/CDP */
+	[KEYMAP_INDEX(0, 1)] = PM_GPIO(2),	/* Volume key on the device/CDP */
+#else
 	[KEYMAP_INDEX(0, 0)] = PM_GPIO(35),	/* Volume key on the device/CDP */
 	[KEYMAP_INDEX(0, 1)] = PM_GPIO(38),	/* Volume key on the device/CDP */
+#endif
 };
 
 unsigned int apq8064_pm8917_keys_gpiomap[] = {
