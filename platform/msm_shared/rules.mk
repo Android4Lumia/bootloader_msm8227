@@ -66,7 +66,7 @@ OBJS += \
 endif
 
 ifeq ($(PLATFORM),msm8x60)
-	OBJS += $(LOCAL_DIR)/mipi_dsi.o \
+	OBJS += $(LOCAL_DIR)/display_legacy/mipi_dsi.o \
 			$(LOCAL_DIR)/i2c_qup.o \
 			$(LOCAL_DIR)/uart_dm.o \
 			$(LOCAL_DIR)/crypto_eng.o \

@@ -47,7 +47,7 @@ static struct fbcon_config fb_cfg = {
 	.bpp          = DTV_BPP,
 	.update_start = NULL,
 	.update_done  = NULL,
-	.base         = FB_ADDR;
+	.base         = FB_ADDR,
 };
 
 struct fbcon_config *get_fbcon(void)
@@ -124,7 +124,7 @@ void hdmi_power_init()
 	hdmi_msm_turn_on();
 }
 
-static void hdmi_msm_reset_core()
+void hdmi_msm_reset_core()
 {
         uint32_t reg_val = 0;
         hdmi_msm_set_mode(0);
