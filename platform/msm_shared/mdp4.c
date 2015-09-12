@@ -425,6 +425,13 @@ int mdp_dump_config(struct fbcon_config *fb) {
 	dprintf(INFO, "%s: trigger_ctrl=0x%x te_sel=%d mdp_trigger=%d dma_trigger=%d\n",
 			__func__, trigger_ctrl, te_sel, mdp_trigger, dma_trigger);
 
+#ifdef TARGET_XIAOMI_ARIES
+	unsigned char DST_FORMAT = 8;
+	int data = 0x00100000;
+	data |= ((DSI_RGB_SWAP_BGR & 0x07) << 16);
+	writel(data | DST_FORMAT, DSI_COMMAND_MODE_MDP_CTRL);
+#endif
+
 	if(mdp_trigger == DSI_CMD_TRIGGER_SW) {
 		fb->update_start = mipi_update_sw_trigger;
 	}
