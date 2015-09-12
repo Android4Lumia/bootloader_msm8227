@@ -177,7 +177,10 @@ __WEAK void target_display_init(const char *panel_name)
 	struct fbcon_config* config = calloc(sizeof(struct fbcon_config), 1);
 	mdp_dump_config(config);
 	fbcon_setup(config);
+
+#ifndef WITH_KERNEL_UEFIAPI
 	display_image_on_screen();
+#endif
 }
 
 __WEAK void target_display_shutdown(void)
