@@ -425,7 +425,7 @@ int mdp_dump_config(struct fbcon_config *fb) {
 	dprintf(INFO, "%s: trigger_ctrl=0x%x te_sel=%d mdp_trigger=%d dma_trigger=%d\n",
 			__func__, trigger_ctrl, te_sel, mdp_trigger, dma_trigger);
 
-#ifdef TARGET_XIAOMI_ARIES
+#ifdef DISPLAY_RGBSWAP
 	unsigned char DST_FORMAT = 8;
 	int data = 0x00100000;
 	data |= ((DSI_RGB_SWAP_BGR & 0x07) << 16);
