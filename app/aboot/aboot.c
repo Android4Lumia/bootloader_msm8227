@@ -3126,6 +3126,146 @@ static void cmd_oem_fbconfig(const char *arg, void *data, unsigned sz)
 	fastboot_okay("");
 }
 
+static void cmd_oem_bootaddresses(const char *arg, void *data, unsigned sz)
+{
+#ifdef ABOOT_IGNORE_BOOT_HEADER_ADDRS
+	char buf[1024];
+
+	snprintf(buf, sizeof(buf), "kernel: 0x%08x", ABOOT_FORCE_KERNEL_ADDR);
+	fastboot_info(buf);
+	snprintf(buf, sizeof(buf), "kernel64: 0x%016x", ABOOT_FORCE_KERNEL64_ADDR);
+	fastboot_info(buf);
+	snprintf(buf, sizeof(buf), "ramdisk: 0x%08x", ABOOT_FORCE_RAMDISK_ADDR);
+	fastboot_info(buf);
+	snprintf(buf, sizeof(buf), "tags: 0x%08x", ABOOT_FORCE_TAGS_ADDR);
+	fastboot_info(buf);
+#else
+	fastboot_info("from boot image");
+#endif
+
+	fastboot_okay("");
+}
+
+typedef struct {
+	uint32_t image_id;
+	uint32_t header_vsn_num;
+	uint32_t image_src;
+	uint32_t image_dest_ptr;
+	uint32_t image_size;
+	uint32_t code_size;
+	uint32_t signature_ptr;
+	uint32_t signature_size;
+	uint32_t cert_chain_ptr;
+	uint32_t cert_chain_size;
+} qcom_bootimg_t;
+
+static const char* qcombootimg2str(uint32_t id) {
+	switch(id) {
+		case 0: return "none";
+		case 1: return "oem sbl";
+		case 2: return "amss";
+		case 3: return "qcsbl";
+		case 4: return "hash";
+		case 5: return "appsbl";
+		case 6: return "apps";
+		case 7: return "hostdl";
+		case 8: return "dsp1";
+		case 9: return "fsbl";
+		case 10: return "dbl";
+		case 11: return "osbl";
+		case 12: return "dsp2";
+		case 13: return "ehostdl";
+		case 14: return "nandprg";
+		case 15: return "norprg";
+		case 16: return "ramfs1";
+		case 17: return "ramfs2";
+		case 18: return "adsp q5";
+		case 19: return "apps kernel";
+		case 20: return "backup ramfs";
+		case 21: return "sbl1";
+		case 22: return "sbl2";
+		case 23: return "rpm";
+		case 24: return "sbl3";
+		case 25: return "tz";
+		case 26: return "ssd keys";
+		case 27: return "gen";
+		case 28: return "dsp3";
+		case 29: return "acdb";
+		case 30: return "sdi";
+		case 31: return "mba";
+		default: return "unknown";
+	}
+}
+
+static void cmd_oem_findbootimages(const char *arg, void *data, unsigned sz)
+{
+	char buf[1024];
+	uint32_t readsize = ROUNDUP(MAX(sizeof(qcom_bootimg_t), sizeof(struct boot_img_hdr*)), mmc_get_device_blocksize());
+
+	// allocate memory
+	qcom_bootimg_t* bootimg = (qcom_bootimg_t*) memalign(CACHE_LINE, readsize);
+	if(!bootimg) {
+		fastboot_okay("error allocating memory");
+		return;
+	}
+	struct boot_img_hdr* aimg = (struct boot_img_hdr*)bootimg;
+
+	unsigned i = 0;
+	unsigned count = partition_get_count();
+	for (i = 0; i < count; i++) {
+		// get offset
+		uint64_t offset = partition_get_offset(i);
+		if(!offset)
+			continue;
+
+		// read
+		uint64_t partsize = partition_get_size(i);
+		if(partsize<readsize)
+			continue;
+
+		if (mmc_read(offset, (uint32_t*)bootimg, readsize))
+			continue;
+
+
+		// android
+		if(!memcmp(aimg->magic, BOOT_MAGIC, BOOT_MAGIC_SIZE)) {
+			snprintf(buf, sizeof(buf), "found Android image on %s", partition_get_name(i));
+			fastboot_info(buf);
+			snprintf(buf, sizeof(buf), "\tKernel: addr:%08x sz:%08x", aimg->kernel_addr, aimg->kernel_size);
+			fastboot_info(buf);
+			snprintf(buf, sizeof(buf), "\tRamdisk: addr:%08x sz:%08x", aimg->ramdisk_addr, aimg->ramdisk_size);
+			fastboot_info(buf);
+			snprintf(buf, sizeof(buf), "\tSecond: addr:%08x sz:%08x", aimg->second_addr, aimg->second_size);
+			fastboot_info(buf);
+			snprintf(buf, sizeof(buf), "\tTags Addr:%08x, DTB sz:%08x", aimg->tags_addr, aimg->dt_size);
+			fastboot_info(buf);
+			snprintf(buf, sizeof(buf), "\tpagesize:%u", aimg->page_size);
+			fastboot_info(buf);
+		}
+
+		// QCOM
+		else if(bootimg->image_id<=0x7FFFFFFF && bootimg->image_size>0 && partsize >= bootimg->image_size &&
+			(bootimg->code_size + bootimg->signature_size + bootimg->cert_chain_size)<=bootimg->image_size) {
+			snprintf(buf, sizeof(buf), "found QCOM image on %s", partition_get_name(i));
+			fastboot_info(buf);
+			snprintf(buf, sizeof(buf), "\tID:%u(%s) version:%u", bootimg->image_id, qcombootimg2str(bootimg->image_id), bootimg->header_vsn_num);
+			fastboot_info(buf);
+			snprintf(buf, sizeof(buf), "\tImage: src:%08x dst:%08x sz:%08x", bootimg->image_src, bootimg->image_dest_ptr, bootimg->image_size);
+			fastboot_info(buf);
+			snprintf(buf, sizeof(buf), "\tSignature: src:%08x sz:%08x", bootimg->signature_ptr, bootimg->signature_size);
+			fastboot_info(buf);
+			snprintf(buf, sizeof(buf), "\tCERT chain: src:%08x sz:%08x", bootimg->cert_chain_ptr, bootimg->cert_chain_size);
+			fastboot_info(buf);
+			snprintf(buf, sizeof(buf), "\tcode size: %08x", bootimg->code_size);
+			fastboot_info(buf);
+		}
+	}
+
+	free(bootimg);
+	fastboot_okay("");
+}
+
+
 /* register commands and variables for fastboot */
 void aboot_fastboot_register_commands(void)
 {
@@ -3159,6 +3299,8 @@ void aboot_fastboot_register_commands(void)
 #endif
 											{"oem ram-ptable", cmd_oem_ram_ptable},
 											{"oem fbconfig", cmd_oem_fbconfig},
+											{"oem bootaddresses", cmd_oem_bootaddresses},
+											{"oem findbootimages", cmd_oem_findbootimages},
 #endif
 										  };
 
