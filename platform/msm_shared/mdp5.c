@@ -1218,3 +1218,16 @@ int mdp_edp_off(void)
 
 	return NO_ERROR;
 }
+
+int mdp_dump_config(struct fbcon_config *fb) {
+	uint32_t pipe_base = MDP_VP_0_RGB_0_BASE;
+
+	fb->base = (void*) readl(pipe_base + PIPE_SSPP_SRC0_ADDR);
+	fb->width = readl(pipe_base + PIPE_SSPP_SRC_YSTRIDE)/3;
+	fb->height = readl(pipe_base + PIPE_SSPP_SRC_IMG_SIZE)>>16;
+	fb->stride = fb->width;
+	fb->bpp = 24;
+	fb->format = FB_FORMAT_RGB888;
+
+	return NO_ERROR;
+}
