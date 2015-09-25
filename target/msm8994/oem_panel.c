@@ -251,6 +251,8 @@ static bool init_panel_data(struct panel_struct *panelstruct,
 			= JDI_4K_DUALDSI_VIDEO_OFF_COMMAND;
 		memcpy(phy_db->timing,
 			jdi_4k_dualdsi_video_timings, TIMING_SIZE);
+
+		pinfo->compression_mode = COMPRESSION_FBC;
 		memcpy(&panelstruct->fbcinfo, &jdi_4k_dualdsi_video_fbc,
 				sizeof(struct fb_compression));
 		break;
@@ -415,13 +417,13 @@ int oem_panel_select(const char *panel_name, struct panel_struct *panelstruct,
 
 		if (panel_override_id < 0) {
 			dprintf(CRITICAL, "Not able to search the panel:%s\n",
-					 panel_name + strspn(panel_name, " "));
+					 panel_name);
 		} else if (panel_override_id < UNKNOWN_PANEL) {
 			/* panel override using fastboot oem command */
 			panel_id = panel_override_id;
 
 			dprintf(INFO, "OEM panel override:%s\n",
-					panel_name + strspn(panel_name, " "));
+					panel_name);
 			goto panel_init;
 		}
 	}

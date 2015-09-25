@@ -58,9 +58,12 @@
 #include <qusb2_phy.h>
 #include <rpmb.h>
 #include <rpm-glink.h>
+#if ENABLE_WBC
+#include <pm_app_smbchg.h>
+#endif
 
 #define CE_INSTANCE             1
-#define CE_EE                   1
+#define CE_EE                   0
 #define CE_FIFO_SIZE            64
 #define CE_READ_PIPE            3
 #define CE_WRITE_PIPE           2
@@ -92,7 +95,7 @@ void target_early_init(void)
 }
 
 /* Return 1 if vol_up pressed */
-static int target_volume_up()
+int target_volume_up()
 {
 	uint8_t status = 0;
 	struct pm8x41_gpio gpio;
@@ -136,8 +139,6 @@ void target_uninit(void)
 	if (platform_boot_dev_isemmc())
 	{
 		mmc_put_card_to_sleep(dev);
-		/* Disable HC mode before jumping to kernel */
-		sdhci_mode_disable(&dev->host);
 	}
 
 	if (is_sec_app_loaded())
@@ -147,6 +148,18 @@ void target_uninit(void)
 			dprintf(CRITICAL, "Failed to unload App for rpmb\n");
 			ASSERT(0);
 		}
+	}
+
+#if ENABLE_WBC
+	if (board_hardware_id() == HW_PLATFORM_MTP)
+		pm_appsbl_set_dcin_suspend(1);
+#endif
+
+
+	if (crypto_initialized())
+	{
+		crypto_eng_cleanup();
+		clock_ce_disable(CE_INSTANCE);
 	}
 
 	/* Tear down glink channels */
@@ -235,7 +248,12 @@ void target_init(void)
 {
 	dprintf(INFO, "target_init()\n");
 
+	pmic_info_populate();
+
 	spmi_init(PMIC_ARB_CHANNEL_NUM, PMIC_ARB_OWNER_ID);
+
+	/* Initialize Glink */
+	rpm_glink_init();
 
 	target_keystatus();
 
@@ -261,14 +279,29 @@ void target_init(void)
 	/* Storage initialization is complete, read the partition table info */
 	mmc_read_partition_table(0);
 
+#if ENABLE_WBC
+	/* Look for battery voltage and make sure we have enough to bootup
+	 * Otherwise initiate battery charging
+	 * Charging should happen as early as possible, any other driver
+	 * initialization before this should consider the power impact
+	 */
+	switch(board_hardware_id())
+	{
+		case HW_PLATFORM_MTP:
+		case HW_PLATFORM_FLUID:
+			pm_appsbl_chg_check_weak_battery_status(1);
+			break;
+		default:
+			/* Charging not supported */
+			break;
+	};
+#endif
+
 	if (rpmb_init() < 0)
 	{
 		dprintf(CRITICAL, "RPMB init failed\n");
 		ASSERT(0);
 	}
-	/* Initialize Glink */
-	rpm_glink_init();
-
 }
 
 unsigned board_machtype(void)
@@ -287,12 +320,13 @@ static uint8_t splash_override;
 int target_cont_splash_screen()
 {
 	uint8_t splash_screen = 0;
-	if(!splash_override) {
+	if(!splash_override && !pm_appsbl_charging_in_progress()) {
 		switch(board_hardware_id())
 		{
 			case HW_PLATFORM_SURF:
 			case HW_PLATFORM_MTP:
 			case HW_PLATFORM_FLUID:
+			case HW_PLATFORM_QRD:
 				dprintf(SPEW, "Target_cont_splash=1\n");
 				splash_screen = 1;
 				break;
@@ -345,42 +379,6 @@ void target_serialno(unsigned char *buf)
 	}
 }
 
-unsigned check_reboot_mode(void)
-{
-	uint32_t restart_reason = 0;
-	uint32_t restart_reason_addr;
-
-	restart_reason_addr = RESTART_REASON_ADDR;
-
-	/* Read reboot reason and scrub it */
-	restart_reason = readl(restart_reason_addr);
-	writel(0x00, restart_reason_addr);
-
-	return restart_reason;
-}
-
-void reboot_device(unsigned reboot_reason)
-{
-	uint8_t reset_type = 0;
-
-	/* Write the reboot reason */
-	writel(reboot_reason, RESTART_REASON_ADDR);
-
-	if(reboot_reason)
-		reset_type = PON_PSHOLD_WARM_RESET;
-	else
-		reset_type = PON_PSHOLD_HARD_RESET;
-
-	pm8x41_reset_configure(reset_type);
-
-	/* Drop PS_HOLD for MSM */
-	writel(0x00, MPM2_MPM_PS_HOLD);
-
-	mdelay(5000);
-
-	dprintf(CRITICAL, "Rebooting failed\n");
-}
-
 int emmc_recovery_init(void)
 {
 	return _emmc_recovery_init();
@@ -423,7 +421,7 @@ uint32_t target_override_pll()
 
 crypto_engine_type board_ce_type(void)
 {
-	return CRYPTO_ENGINE_TYPE_SW;
+	return CRYPTO_ENGINE_TYPE_HW;
 }
 
 /* Set up params for h/w CE. */
@@ -483,4 +481,9 @@ int set_download_mode(enum dload_mode mode)
 	ret = scm_dload_mode(mode);
 
 	return ret;
+}
+
+void pmic_reset_configure(uint8_t reset_type)
+{
+	pm8994_reset_configure(reset_type);
 }

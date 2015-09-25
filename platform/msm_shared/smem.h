@@ -33,10 +33,13 @@
 
 #include <sys/types.h>
 #include <platform.h>
+#include <malloc.h>
+#include <string.h>
 
 #define SMEM_V7_SMEM_MAX_PMIC_DEVICES   1
 #define SMEM_V8_SMEM_MAX_PMIC_DEVICES   3
-#define SMEM_MAX_PMIC_DEVICES           SMEM_V8_SMEM_MAX_PMIC_DEVICES
+#define SMEM_V11_SMEM_MAX_PMIC_DEVICES  4 // this is the max that device tree currently supports
+#define SMEM_MAX_PMIC_DEVICES           SMEM_V11_SMEM_MAX_PMIC_DEVICES
 
 #define SMEM_RAM_PTABLE_VERSION_OFFSET  8
 
@@ -205,6 +208,18 @@ struct smem_board_info_v10 {
 	struct smem_pmic_info pmic_info[SMEM_V8_SMEM_MAX_PMIC_DEVICES];
 	uint32_t foundry_id; /* Used as foundry_id only for v9  */
 	uint32_t chip_serial; /* Used as serial number for v10 */
+};
+
+struct smem_board_info_v11 {
+	struct smem_board_info_v3 board_info_v3;
+	unsigned platform_version;
+	unsigned fused_chip;
+	unsigned platform_subtype;
+	struct smem_pmic_info pmic_info[SMEM_V8_SMEM_MAX_PMIC_DEVICES]; // Depreciated
+	uint32_t foundry_id; /* Used as foundry_id only for v9  */
+	uint32_t chip_serial; /* Used as serial number for v10 */
+	uint32_t num_pmics; /* Number of pmics in array */
+	uint32_t pmic_array_offset; /* Offset from base of structure to array of pmic info types */
 };
 
 typedef struct {
@@ -412,8 +427,15 @@ enum {
 	FSM9916  = 276,
 	APQ8076  = 277,
 	MSM8976  = 278,
+	MDMCALIFORNIUM1  = 279,
+	MDMCALIFORNIUM2  = 283,
+	MDMCALIFORNIUM3  = 284,
+	MDMCALIFORNIUM4  = 285,
+	MDMCALIFORNIUM5  = 286,
 	APQ8052  = 289,
+	MDMFERMIUM  = 290,
 	APQ8096  = 291,
+	MSMTITANIUM  = 293,
 };
 
 enum platform {
@@ -637,6 +659,7 @@ uint32_t smem_get_ram_ptable_version(void);
 uint32_t smem_get_ram_ptable_len(void);
 void* smem_get_alloc_entry(smem_mem_type_t type, uint32_t* size);
 uint32_t get_ddr_start();
+uint64_t smem_get_ddr_size();
 
 const char* smem_attr2str(int i);
 const char* smem_category2str(int i);

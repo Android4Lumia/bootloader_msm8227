@@ -25,7 +25,7 @@
  * OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-
+#include <arch/defines.h>
 #include <platform/iomap.h>
 #include <qusb2_phy.h>
 #include <reg.h>
@@ -46,6 +46,8 @@ __WEAK int platform_is_msm8996()
 void qusb2_phy_reset(void)
 {
 	uint32_t val;
+	/* Default tune value */
+	uint8_t tune2 = 0xB3;
 
 	/* Block Reset */
 	val = readl(GCC_QUSB2_PHY_BCR) | BIT(0);
@@ -53,13 +55,28 @@ void qusb2_phy_reset(void)
 	udelay(10);
 	writel(val & ~BIT(0), GCC_QUSB2_PHY_BCR);
 
+	/* configure the abh2 phy to wait state */
+	writel(0x11, PERIPH_SS_AHB2PHY_TOP_CFG);
+	dmb();
+
 	/* set CLAMP_N_EN and stay with disabled USB PHY */
 	writel(0x23, QUSB2PHY_PORT_POWERDOWN);
 
 	if (platform_is_msm8996())
 	{
 		writel(0xF8, QUSB2PHY_PORT_TUNE1);
-		writel(0x83, QUSB2PHY_PORT_TUNE2);
+		/* Upper nibble of tune2 register should be updated based on the fuse value.
+		 * Read the bits 21..24 from fuse and update the upper nibble with this value
+		 */
+#if QFPROM_CORR_CALIB_ROW12_MSB
+		uint8_t fuse_val = (readl(QFPROM_CORR_CALIB_ROW12_MSB) & 0x1E00000) >> 21;
+		/* If fuse value is non zero then update the upper nibble with the fuse value
+		 * otherwise use the default value
+		 */
+		if (fuse_val)
+			tune2 = (tune2 & 0x0f) | (fuse_val << 4);
+#endif
+		writel(tune2, QUSB2PHY_PORT_TUNE2);
 		writel(0x93, QUSB2PHY_PORT_TUNE3);
 		writel(0xC0, QUSB2PHY_PORT_TUNE4);
 		writel(0x30, QUSB2PHY_PLL_TUNE);

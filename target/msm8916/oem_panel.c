@@ -632,13 +632,13 @@ int oem_panel_select(const char *panel_name, struct panel_struct *panelstruct,
 
 		if (panel_override_id < 0) {
 			dprintf(CRITICAL, "Not able to search the panel:%s\n",
-					 panel_name + strspn(panel_name, " "));
+					 panel_name);
 		} else if (panel_override_id < UNKNOWN_PANEL) {
 			/* panel override using fastboot oem command */
 			panel_id = panel_override_id;
 
 			dprintf(INFO, "OEM panel override:%s\n",
-					panel_name + strspn(panel_name, " "));
+					panel_name);
 			goto panel_init;
 		}
 	}
@@ -744,20 +744,8 @@ int oem_panel_select(const char *panel_name, struct panel_struct *panelstruct,
 		}
 		break;
 	case HW_PLATFORM_SBC:
-		if (platform_is_apq8016()) {
-			/* Set Switch GPIO to DSI2HDMI mode */
-			target_set_switch_gpio(1);
-			/* ADV7533 DSI to HDMI Bridge Chip Connected */
-			mipi_dsi_i2c_device_init();
-			/* Read ADV Chip ID */
-			if (!mipi_dsi_i2c_read_byte(ADV7533_MAIN, 0x00, &rev)) {
-				dprintf(INFO, "ADV7533 Rev ID: 0x%x\n",rev);
-			} else {
-				dprintf(CRITICAL, "error reading Rev ID from bridge chip\n");
-				return PANEL_TYPE_UNKNOWN;
-			}
-			panel_id = ADV7533_720P_VIDEO_PANEL;
-		}
+		if (platform_is_apq8016())
+			panel_id = ADV7533_1080P_VIDEO_PANEL;
 		break;
 	default:
 		dprintf(CRITICAL, "Display not enabled for %d HW type\n",
@@ -766,6 +754,20 @@ int oem_panel_select(const char *panel_name, struct panel_struct *panelstruct,
 	}
 
 panel_init:
+	if (platform_is_apq8016() && (hw_id == HW_PLATFORM_SBC)) {
+		/* Set Switch GPIO to DSI2HDMI mode */
+		target_set_switch_gpio(1);
+		/* ADV7533 DSI to HDMI Bridge Chip Connected */
+		mipi_dsi_i2c_device_init();
+		/* Read ADV Chip ID */
+		if (!mipi_dsi_i2c_read_byte(ADV7533_MAIN, 0x00, &rev)) {
+			dprintf(INFO, "ADV7533 Rev ID: 0x%x\n",rev);
+		} else {
+			dprintf(CRITICAL, "error reading Rev ID from bridge chip\n");
+			return PANEL_TYPE_UNKNOWN;
+		}
+	}
+
 	/*
 	 * Update all data structures after 'panel_init' label. Only panel
 	 * selection is supposed to happen before that.

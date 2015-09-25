@@ -58,8 +58,13 @@
 #include <boot_verifier.h>
 #include <image_verify.h>
 #include <decompress.h>
+#include <platform/timer.h>
 #if USE_RPMB_FOR_DEVINFO
 #include <rpmb.h>
+#endif
+
+#if ENABLE_WBC
+#include <pm_app_smbchg.h>
 #endif
 
 #if DEVICE_TREE
@@ -67,8 +72,13 @@
 #include <dev_tree.h>
 #endif
 
+#if WDOG_SUPPORT
+#include <wdog.h>
+#endif
+
 #include <cmdline.h>
 
+#include <reboot.h>
 #include "image_verify.h"
 #include "recovery.h"
 #include "bootimg.h"
@@ -87,6 +97,7 @@ extern void target_uninit(void);
 extern int get_target_boot_params(const char *cmdline, const char *part,
 				  char *buf, int buflen);
 
+void *info_buf;
 void write_device_info_mmc(device_info *dev);
 void write_device_info_flash(device_info *dev);
 static int aboot_save_boot_hash_mmc(uint32_t image_addr, uint32_t image_size);
@@ -113,14 +124,6 @@ struct fastboot_cmd_desc {
 #endif
 
 #define MAX_TAGS_SIZE   1024
-
-#define RECOVERY_HARD_RESET_MODE   0x01
-#define FASTBOOT_HARD_RESET_MODE   0x02
-#define RTC_HARD_RESET_MODE        0x03
-
-#define RECOVERY_MODE   0x77665502
-#define FASTBOOT_MODE   0x77665500
-#define ALARM_BOOT      0x77665503
 
 /* make 4096 as default size to ensure EFS,EXT4's erasing */
 #define DEFAULT_ERASE_SIZE  4096
@@ -172,6 +175,8 @@ static int auth_kernel_img = 0;
 
 static device_info device = {DEVICE_MAGIC, 0, 0, 0, 0, {0}, {0},{0}};
 static bool is_allow_unlock = 0;
+
+static char frp_ptns[2][8] = {"config","frp"};
 
 struct atag_ptbl_entry
 {
@@ -287,8 +292,8 @@ unsigned char *update_cmdline(const char * cmdline)
 		cmdline_len += strlen(loglevel);
 	} else if (boot_reason_alarm) {
 		cmdline_len += strlen(alarmboot_cmdline);
-	} else if (device.charger_screen_enabled &&
-			target_pause_for_battery_charge()) {
+	} else if ((target_build_variant_user() || device.charger_screen_enabled)
+			&& target_pause_for_battery_charge()) {
 		pause_at_bootup = 1;
 		cmdline_len += strlen(battchg_pause);
 	}
@@ -351,8 +356,8 @@ unsigned char *update_cmdline(const char * cmdline)
 
 	if (cmdline) {
 		if ((strstr(cmdline, DISPLAY_DEFAULT_PREFIX) == NULL) &&
-			target_display_panel_node(device.display_panel,
-			display_panel_buf, MAX_PANEL_BUF_SIZE) &&
+			target_display_panel_node(display_panel_buf,
+			MAX_PANEL_BUF_SIZE) &&
 			strlen(display_panel_buf)) {
 			cmdline_len += strlen(display_panel_buf);
 		}
@@ -675,6 +680,10 @@ void boot_linux(void *kernel, unsigned *tags,
 
 	enter_critical_section();
 
+	/* Initialise wdog to catch early kernel crashes */
+#if WDOG_SUPPORT
+	msm_wdog_init();
+#endif
 	/* do any platform specific cleanup before kernel entry */
 	platform_uninit();
 
@@ -791,6 +800,7 @@ static void verify_signed_bootimg(uint32_t bootimg_addr, uint32_t bootimg_size)
 		{
 			dprintf(CRITICAL,
 					"Device verification failed. Rebooting into recovery.\n");
+			mdelay(1000);
 			reboot_device(RECOVERY_MODE);
 		}
 		else
@@ -1009,7 +1019,8 @@ int boot_linux_from_mmc(void)
 	 * 4. Sanity Check on kernel_addr and ramdisk_addr and copy data.
 	 */
 
-	dprintf(INFO, "Loading boot image (%d): start\n", imagesize_actual);
+	dprintf(INFO, "Loading (%s) image (%d): start\n",
+			(!boot_into_recovery ? "boot" : "recovery"),imagesize_actual);
 	bs_set_timestamp(BS_KERNEL_LOAD_START);
 
 	/* Read image without signature */
@@ -1019,7 +1030,9 @@ int boot_linux_from_mmc(void)
 		return -1;
 	}
 
-	dprintf(INFO, "Loading boot image (%d): done\n", imagesize_actual);
+	dprintf(INFO, "Loading (%s) image (%d): done\n",
+			(!boot_into_recovery ? "boot" : "recovery"),imagesize_actual);
+
 	bs_set_timestamp(BS_KERNEL_LOAD_DONE);
 
 	/* Authenticate Kernel */
@@ -1329,7 +1342,8 @@ int boot_linux_from_flash(void)
 		imagesize_actual = (page_size + kernel_actual + ramdisk_actual);
 #endif
 
-		dprintf(INFO, "Loading boot image (%d): start\n", imagesize_actual);
+		dprintf(INFO, "Loading (%s) image (%d): start\n",
+			(!boot_into_recovery ? "boot" : "recovery"),imagesize_actual);
 		bs_set_timestamp(BS_KERNEL_LOAD_START);
 
 		/* Read image without signature */
@@ -1339,7 +1353,8 @@ int boot_linux_from_flash(void)
 				return -1;
 		}
 
-		dprintf(INFO, "Loading boot image (%d): done\n", imagesize_actual);
+		dprintf(INFO, "Loading (%s) image (%d): done\n",
+			(!boot_into_recovery ? "boot" : "recovery"), imagesize_actual);
 		bs_set_timestamp(BS_KERNEL_LOAD_DONE);
 
 		offset = imagesize_actual;
@@ -1383,8 +1398,9 @@ int boot_linux_from_flash(void)
 		ramdisk_actual = ROUND_TO_PAGE(hdr->ramdisk_size, page_mask);
 		second_actual = ROUND_TO_PAGE(hdr->second_size, page_mask);
 
-		dprintf(INFO, "Loading boot image (%d): start\n",
-				kernel_actual + ramdisk_actual);
+		dprintf(INFO, "Loading (%s) image (%d): start\n",
+				(!boot_into_recovery ? "boot" : "recovery"), kernel_actual + ramdisk_actual);
+
 		bs_set_timestamp(BS_KERNEL_LOAD_START);
 
 		if (flash_read(ptn, offset, (void *)hdr->kernel_addr, kernel_actual)) {
@@ -1399,8 +1415,9 @@ int boot_linux_from_flash(void)
 		}
 		offset += ramdisk_actual;
 
-		dprintf(INFO, "Loading boot image (%d): done\n",
-				kernel_actual + ramdisk_actual);
+		dprintf(INFO, "Loading (%s) image (%d): done\n",
+				(!boot_into_recovery ? "boot" : "recovery"), kernel_actual + ramdisk_actual);
+
 		bs_set_timestamp(BS_KERNEL_LOAD_DONE);
 
 		if(hdr->second_size != 0) {
@@ -1470,7 +1487,6 @@ continue_boot:
 	return 0;
 }
 
-BUF_DMA_ALIGN(info_buf, BOOT_IMG_MAX_PAGE_SIZE);
 void write_device_info_mmc(device_info *dev)
 {
 	unsigned long long ptn = 0;
@@ -1509,7 +1525,7 @@ void write_device_info_mmc(device_info *dev)
 	if (ret)
 	{
 		dprintf(CRITICAL, "ERROR: Cannot write device info\n");
-		return;
+		ASSERT(0);
 	}
 }
 
@@ -1546,14 +1562,13 @@ void read_device_info_mmc(struct device_info *info)
 	if (ret)
 	{
 		dprintf(CRITICAL, "ERROR: Cannot read device info\n");
-		return;
+		ASSERT(0);
 	}
-
 }
 
 void write_device_info_flash(device_info *dev)
 {
-	struct device_info *info = (void *) info_buf;
+	struct device_info *info = memalign(PAGE_SIZE, ROUNDUP(BOOT_IMG_MAX_PAGE_SIZE, PAGE_SIZE));
 	struct ptentry *ptn;
 	struct ptable *ptable;
 
@@ -1561,6 +1576,12 @@ void write_device_info_flash(device_info *dev)
 	return;
 	#endif
 
+	if(info == NULL)
+	{
+		dprintf(CRITICAL, "Failed to allocate memory for device info struct\n");
+		ASSERT(0);
+	}
+	info_buf = info;
 	ptable = flash_get_ptable();
 	if (ptable == NULL)
 	{
@@ -1582,30 +1603,34 @@ void write_device_info_flash(device_info *dev)
 		dprintf(CRITICAL, "ERROR: Cannot write device info\n");
 			return;
 	}
+	free(info);
 }
 
 static int read_allow_oem_unlock(device_info *dev)
 {
-	const char *ptn_name = "frp";
 	unsigned offset;
 	int index;
 	unsigned long long ptn;
 	unsigned long long ptn_size;
 	unsigned blocksize = mmc_get_device_blocksize();
-	char buf[blocksize];
+	STACKBUF_DMA_ALIGN(buf, blocksize);
 
-	index = partition_get_index(ptn_name);
+	index = partition_get_index(frp_ptns[0]);
 	if (index == INVALID_PTN)
 	{
-		dprintf(CRITICAL, "No '%s' partition found\n", ptn_name);
-		return -1;
+		index = partition_get_index(frp_ptns[1]);
+		if (index == INVALID_PTN)
+		{
+			dprintf(CRITICAL, "Neither '%s' nor '%s' partition found\n", frp_ptns[0],frp_ptns[1]);
+			return -1;
+		}
 	}
 
 	ptn = partition_get_offset(index);
 	ptn_size = partition_get_size(index);
 	offset = ptn_size - blocksize;
 
-	if (mmc_read(ptn + offset, (void *)buf, sizeof(buf)))
+	if (mmc_read(ptn + offset, (void *)buf, blocksize))
 	{
 		dprintf(CRITICAL, "Reading MMC failed\n");
 		return -1;
@@ -1618,27 +1643,29 @@ static int read_allow_oem_unlock(device_info *dev)
 
 static int write_allow_oem_unlock(bool allow_unlock)
 {
-	const char *ptn_name = "frp";
 	unsigned offset;
-
 	int index;
 	unsigned long long ptn;
 	unsigned long long ptn_size;
 	unsigned blocksize = mmc_get_device_blocksize();
-	char buf[blocksize];
+	STACKBUF_DMA_ALIGN(buf, blocksize);
 
-	index = partition_get_index(ptn_name);
+	index = partition_get_index(frp_ptns[0]);
 	if (index == INVALID_PTN)
 	{
-		dprintf(CRITICAL, "No '%s' partition found\n", ptn_name);
-		return -1;
+		index = partition_get_index(frp_ptns[1]);
+		if (index == INVALID_PTN)
+		{
+			dprintf(CRITICAL, "Neither '%s' nor '%s' partition found\n", frp_ptns[0],frp_ptns[1]);
+			return -1;
+		}
 	}
 
 	ptn = partition_get_offset(index);
 	ptn_size = partition_get_size(index);
 	offset = ptn_size - blocksize;
 
-	if (mmc_read(ptn + offset, (void *)buf, sizeof(buf)))
+	if (mmc_read(ptn + offset, (void *)buf, blocksize))
 	{
 		dprintf(CRITICAL, "Reading MMC failed\n");
 		return -1;
@@ -1657,10 +1684,15 @@ static int write_allow_oem_unlock(bool allow_unlock)
 
 void read_device_info_flash(device_info *dev)
 {
-	struct device_info *info = (void*) info_buf;
+	struct device_info *info = memalign(PAGE_SIZE, ROUNDUP(BOOT_IMG_MAX_PAGE_SIZE, PAGE_SIZE));
 	struct ptentry *ptn;
 	struct ptable *ptable;
-
+	if(info == NULL)
+	{
+		dprintf(CRITICAL, "Failed to allocate memory for device info struct\n");
+		ASSERT(0);
+	}
+	info_buf = info;
 	ptable = flash_get_ptable();
 	if (ptable == NULL)
 	{
@@ -1689,23 +1721,33 @@ void read_device_info_flash(device_info *dev)
 		write_device_info_flash(info);
 	}
 	memcpy(dev, info, sizeof(device_info));
+	free(info);
 }
 
 void write_device_info(device_info *dev)
 {
 	if(target_is_emmc_boot())
 	{
-		struct device_info *info = (void*) info_buf;
+		struct device_info *info = memalign(PAGE_SIZE, ROUNDUP(BOOT_IMG_MAX_PAGE_SIZE, PAGE_SIZE));
+		if(info == NULL)
+		{
+			dprintf(CRITICAL, "Failed to allocate memory for device info struct\n");
+			ASSERT(0);
+		}
+		info_buf = info;
 		memcpy(info, dev, sizeof(struct device_info));
 
 #if USE_RPMB_FOR_DEVINFO
-		if (is_secure_boot_enable())
-			write_device_info_rpmb((void*) info, mmc_get_device_blocksize());
+		if (is_secure_boot_enable()) {
+			if((write_device_info_rpmb((void*) info, PAGE_SIZE)) < 0)
+				ASSERT(0);
+		}
 		else
 			write_device_info_mmc(info);
 #else
 		write_device_info_mmc(info);
 #endif
+		free(info);
 	}
 	else
 	{
@@ -1717,11 +1759,19 @@ void read_device_info(device_info *dev)
 {
 	if(target_is_emmc_boot())
 	{
-		struct device_info *info = (void*) info_buf;
+		struct device_info *info = memalign(PAGE_SIZE, ROUNDUP(BOOT_IMG_MAX_PAGE_SIZE, PAGE_SIZE));
+		if(info == NULL)
+		{
+			dprintf(CRITICAL, "Failed to allocate memory for device info struct\n");
+			ASSERT(0);
+		}
+		info_buf = info;
 
 #if USE_RPMB_FOR_DEVINFO
-		if (is_secure_boot_enable())
-			read_device_info_rpmb((void*) info, mmc_get_device_blocksize());
+		if (is_secure_boot_enable()) {
+			if((read_device_info_rpmb((void*) info, PAGE_SIZE)) < 0)
+				ASSERT(0);
+		}
 		else
 			read_device_info_mmc(info);
 #else
@@ -1735,16 +1785,12 @@ void read_device_info(device_info *dev)
 				info->is_unlocked = 0;
 			else
 				info->is_unlocked = 1;
-			info->is_verified = 0;
 			info->is_tampered = 0;
-#if USER_BUILD_VARIANT
-			info->charger_screen_enabled = 1;
-#else
 			info->charger_screen_enabled = 0;
-#endif
 			write_device_info(info);
 		}
 		memcpy(dev, info, sizeof(device_info));
+		free(info);
 	}
 	else
 	{
@@ -1851,6 +1897,9 @@ int copy_dtb(uint8_t *boot_image_start, unsigned int scratch_offset)
 
 void cmd_boot(const char *arg, void *data, unsigned sz)
 {
+#ifdef MDTP_SUPPORT
+	static bool is_mdtp_activated = 0;
+#endif /* MDTP_SUPPORT */
 	unsigned kernel_actual;
 	unsigned ramdisk_actual;
 	uint32_t image_actual;
@@ -1870,7 +1919,7 @@ void cmd_boot(const char *arg, void *data, unsigned sz)
 	unsigned int scratch_offset = 0;
 
 #if VERIFIED_BOOT
-	if(!device.is_unlocked)
+	if(target_build_variant_user() && !device.is_unlocked)
 	{
 		fastboot_fail("unlock device to use this command");
 		return;
@@ -1923,18 +1972,19 @@ void cmd_boot(const char *arg, void *data, unsigned sz)
 #ifdef MDTP_SUPPORT
 	else
 	{
-		/* Verify MDTP lock before continue with boot process.
-		 * For boot & recovery partitions, MDTP will use boot_verifier APIs,
-		 * since verification was skipped in aboot. The signarue is already part of the loaded image.
-		 */
+		/* fastboot boot is not allowed when MDTP is activated */
 		mdtp_ext_partition_verification_t ext_partition;
-		ext_partition.partition = boot_into_recovery ? MDTP_PARTITION_RECOVERY : MDTP_PARTITION_BOOT;
-		ext_partition.integrity_state = MDTP_PARTITION_STATE_UNSET;
-		ext_partition.page_size = page_size;
-		ext_partition.image_addr = (uint32_t)data;
-		ext_partition.image_size = image_actual - sig_actual;
-		ext_partition.sig_avail = TRUE;
-		mdtp_fwlock_verify_lock(&ext_partition);
+
+		if (!is_mdtp_activated) {
+			ext_partition.partition = MDTP_PARTITION_NONE;
+			mdtp_fwlock_verify_lock(&ext_partition);
+		}
+	}
+
+	mdtp_activated(&is_mdtp_activated);
+	if(is_mdtp_activated){
+		dprintf(CRITICAL, "fastboot boot command is not available.\n");
+		return;
 	}
 #endif /* MDTP_SUPPORT */
 
@@ -2119,17 +2169,20 @@ void cmd_erase_mmc(const char *arg, void *data, unsigned sz)
 void cmd_erase(const char *arg, void *data, unsigned sz)
 {
 #if VERIFIED_BOOT
-	if(!device.is_unlocked && !device.is_verified)
+	if (target_build_variant_user())
 	{
-		fastboot_fail("device is locked. Cannot erase");
-		return;
-	}
-	if(!device.is_unlocked && device.is_verified)
-	{
-		if(!boot_verify_flash_allowed(arg))
+		if(!device.is_unlocked && !device.is_verified)
 		{
-			fastboot_fail("cannot flash this partition in verified state");
+			fastboot_fail("device is locked. Cannot erase");
 			return;
+		}
+		if(!device.is_unlocked && device.is_verified)
+		{
+			if(!boot_verify_flash_allowed(arg))
+			{
+				fastboot_fail("cannot flash this partition in verified state");
+				return;
+			}
 		}
 	}
 #endif
@@ -2267,10 +2320,9 @@ void cmd_flash_meta_img(const char *arg, void *data, unsigned sz)
 void cmd_flash_mmc_sparse_img(const char *arg, void *data, unsigned sz)
 {
 	unsigned int chunk;
-	unsigned int chunk_data_sz;
+	uint64_t chunk_data_sz;
 	uint32_t *fill_buf = NULL;
 	uint32_t fill_val;
-	uint32_t chunk_blk_cnt = 0;
 	sparse_header_t *sparse_header;
 	chunk_header_t *chunk_header;
 	uint32_t total_blocks = 0;
@@ -2279,6 +2331,8 @@ void cmd_flash_mmc_sparse_img(const char *arg, void *data, unsigned sz)
 	int index = INVALID_PTN;
 	uint32_t i;
 	uint8_t lun = 0;
+	/*End of the sparse image address*/
+	uint32_t data_end = (uint32_t)data + sz;
 
 	index = partition_get_index(arg);
 	ptn = partition_get_offset(index);
@@ -2288,28 +2342,34 @@ void cmd_flash_mmc_sparse_img(const char *arg, void *data, unsigned sz)
 	}
 
 	size = partition_get_size(index);
-	if (ROUND_TO_PAGE(sz,511) > size) {
-		fastboot_fail("size too large");
-		return;
-	}
 
 	lun = partition_get_lun(index);
 	mmc_set_lun(lun);
 
+	if (sz < sizeof(sparse_header_t)) {
+		fastboot_fail("size too low");
+		return;
+	}
+
 	/* Read and skip over sparse image header */
 	sparse_header = (sparse_header_t *) data;
+
 	if (((uint64_t)sparse_header->total_blks * (uint64_t)sparse_header->blk_sz) > size) {
 		fastboot_fail("size too large");
 		return;
 	}
 
-	data += sparse_header->file_hdr_sz;
-	if(sparse_header->file_hdr_sz > sizeof(sparse_header_t))
+	data += sizeof(sparse_header_t);
+
+	if (data_end < (uint32_t)data) {
+		fastboot_fail("buffer overreads occured due to invalid sparse header");
+		return;
+	}
+
+	if(sparse_header->file_hdr_sz != sizeof(sparse_header_t))
 	{
-		/* Skip the remaining bytes in a header that is longer than
-		 * we expected.
-		 */
-		data += (sparse_header->file_hdr_sz - sizeof(sparse_header_t));
+		fastboot_fail("sparse header size mismatch");
+		return;
 	}
 
 	dprintf (SPEW, "=== Sparse Image Header ===\n");
@@ -2334,27 +2394,28 @@ void cmd_flash_mmc_sparse_img(const char *arg, void *data, unsigned sz)
 		chunk_header = (chunk_header_t *) data;
 		data += sizeof(chunk_header_t);
 
+		if (data_end < (uint32_t)data) {
+			fastboot_fail("buffer overreads occured due to invalid sparse header");
+			return;
+		}
+
 		dprintf (SPEW, "=== Chunk Header ===\n");
 		dprintf (SPEW, "chunk_type: 0x%x\n", chunk_header->chunk_type);
 		dprintf (SPEW, "chunk_data_sz: 0x%x\n", chunk_header->chunk_sz);
 		dprintf (SPEW, "total_size: 0x%x\n", chunk_header->total_sz);
 
-		if(sparse_header->chunk_hdr_sz > sizeof(chunk_header_t))
+		if(sparse_header->chunk_hdr_sz != sizeof(chunk_header_t))
 		{
-			/* Skip the remaining bytes in a header that is longer than
-			 * we expected.
-			 */
-			data += (sparse_header->chunk_hdr_sz - sizeof(chunk_header_t));
-		}
-
-		chunk_data_sz = sparse_header->blk_sz * chunk_header->chunk_sz;
-
-		/* Make sure multiplication does not overflow uint32 size */
-		if (sparse_header->blk_sz && (chunk_header->chunk_sz != chunk_data_sz / sparse_header->blk_sz))
-		{
-			fastboot_fail("Bogus size sparse and chunk header");
+			fastboot_fail("chunk header size mismatch");
 			return;
 		}
+
+		if (!sparse_header->blk_sz ){
+			fastboot_fail("Invalid block size\n");
+			return;
+		}
+
+		chunk_data_sz = (uint64_t)sparse_header->blk_sz * chunk_header->chunk_sz;
 
 		/* Make sure that the chunk size calculated from sparse image does not
 		 * exceed partition size
@@ -2368,15 +2429,23 @@ void cmd_flash_mmc_sparse_img(const char *arg, void *data, unsigned sz)
 		switch (chunk_header->chunk_type)
 		{
 			case CHUNK_TYPE_RAW:
-			if(chunk_header->total_sz != (sparse_header->chunk_hdr_sz +
+			if((uint64_t)chunk_header->total_sz != ((uint64_t)sparse_header->chunk_hdr_sz +
 											chunk_data_sz))
 			{
 				fastboot_fail("Bogus chunk size for chunk type Raw");
 				return;
 			}
 
+			if (data_end < (uint32_t)data + chunk_data_sz) {
+				fastboot_fail("buffer overreads occured due to invalid sparse header");
+				return;
+			}
+
+			/* chunk_header->total_sz is uint32,So chunk_data_sz is now less than 2^32
+			   otherwise it will return in the line above
+			 */
 			if(mmc_write(ptn + ((uint64_t)total_blocks*sparse_header->blk_sz),
-						chunk_data_sz,
+						(uint32_t)chunk_data_sz,
 						(unsigned int*)data))
 			{
 				fastboot_fail("flash write failure");
@@ -2387,7 +2456,7 @@ void cmd_flash_mmc_sparse_img(const char *arg, void *data, unsigned sz)
 				return;
 			}
 			total_blocks += chunk_header->chunk_sz;
-			data += chunk_data_sz;
+			data += (uint32_t)chunk_data_sz;
 			break;
 
 			case CHUNK_TYPE_FILL:
@@ -2405,16 +2474,19 @@ void cmd_flash_mmc_sparse_img(const char *arg, void *data, unsigned sz)
 				return;
 			}
 
+			if (data_end < (uint32_t)data + sizeof(uint32_t)) {
+				fastboot_fail("buffer overreads occured due to invalid sparse header");
+				return;
+			}
 			fill_val = *(uint32_t *)data;
 			data = (char *) data + sizeof(uint32_t);
-			chunk_blk_cnt = chunk_data_sz / sparse_header->blk_sz;
 
 			for (i = 0; i < (sparse_header->blk_sz / sizeof(fill_val)); i++)
 			{
 				fill_buf[i] = fill_val;
 			}
 
-			for (i = 0; i < chunk_blk_cnt; i++)
+			for (i = 0; i < chunk_header->chunk_sz; i++)
 			{
 				/* Make sure that the data written to partition does not exceed partition size */
 				if ((uint64_t)total_blocks * (uint64_t)sparse_header->blk_sz + sparse_header->blk_sz > size)
@@ -2449,7 +2521,7 @@ void cmd_flash_mmc_sparse_img(const char *arg, void *data, unsigned sz)
 			case CHUNK_TYPE_CRC:
 			if(chunk_header->total_sz != sparse_header->chunk_hdr_sz)
 			{
-				fastboot_fail("Bogus chunk size for chunk type Dont Care");
+				fastboot_fail("Bogus chunk size for chunk type CRC");
 				return;
 			}
 			if(total_blocks > (UINT_MAX - chunk_header->chunk_sz)) {
@@ -2457,7 +2529,15 @@ void cmd_flash_mmc_sparse_img(const char *arg, void *data, unsigned sz)
 				return;
 			}
 			total_blocks += chunk_header->chunk_sz;
-			data += chunk_data_sz;
+			if ((uint32_t)data > UINT_MAX - chunk_data_sz) {
+				fastboot_fail("integer overflow occured");
+				return;
+			}
+			data += (uint32_t)chunk_data_sz;
+			if (data_end < (uint32_t)data) {
+				fastboot_fail("buffer overreads occured due to invalid sparse header");
+				return;
+			}
 			break;
 
 			default:
@@ -2553,17 +2633,20 @@ void cmd_flash_mmc(const char *arg, void *data, unsigned sz)
 #endif /* SSD_ENABLE */
 
 #if VERIFIED_BOOT
-	if(!device.is_unlocked)
+	if (target_build_variant_user())
 	{
-		fastboot_fail("device is locked. Cannot flash images");
-		return;
-	}
-	if(!device.is_unlocked && device.is_verified)
-	{
-		if(!boot_verify_flash_allowed(arg))
+		if(!device.is_unlocked)
 		{
-			fastboot_fail("cannot flash this partition in verified state");
+			fastboot_fail("device is locked. Cannot flash images");
 			return;
+		}
+		if(!device.is_unlocked && device.is_verified)
+		{
+			if(!boot_verify_flash_allowed(arg))
+			{
+				fastboot_fail("cannot flash this partition in verified state");
+				return;
+			}
 		}
 	}
 #endif
@@ -2903,6 +2986,8 @@ int splash_screen_mmc()
 	unsigned long long ptn = 0;
 	struct fbcon_config *fb_display = NULL;
 	struct logo_img_header *header;
+	uint32_t blocksize, realsize, readsize;
+	uint8_t *base;
 
 	index = partition_get_index("splash");
 	if (index == 0) {
@@ -2916,52 +3001,77 @@ int splash_screen_mmc()
 		return -1;
 	}
 
-	if (mmc_read(ptn, (uint32_t *)logo_header, LOGO_IMG_HEADER_SIZE)) {
+	mmc_set_lun(partition_get_lun(index));
+
+	blocksize = mmc_get_device_blocksize();
+	if (blocksize == 0) {
+		dprintf(CRITICAL, "ERROR:splash Partition invalid blocksize\n");
+		return -1;
+	}
+
+	fb_display = fbcon_display();
+	if (!fb_display)
+	{
+		dprintf(CRITICAL, "ERROR: fb config is not allocated\n");
+		return -1;
+	}
+
+	base = (uint8_t *) fb_display->base;
+
+	if (mmc_read(ptn, (uint32_t *)(base + LOGO_IMG_OFFSET), blocksize)) {
 		dprintf(CRITICAL, "ERROR: Cannot read splash image header\n");
 		return -1;
 	}
 
-	header = (struct logo_img_header *)logo_header;
+	header = (struct logo_img_header *)(base + LOGO_IMG_OFFSET);
 	if (splash_screen_check_header(header)) {
 		dprintf(CRITICAL, "ERROR: Splash image header invalid\n");
 		return -1;
 	}
 
-	fb_display = fbcon_display();
 	if (fb_display) {
-		/* 1 RLE24 compressed data */
-		if (header->type && (header->blocks != 0)) {
-			uint8_t *base = (uint8_t *) fb_display->base + LOGO_IMG_OFFSET;
+		if (header->type && (header->blocks != 0)) { /* 1 RLE24 compressed data */
+			base += LOGO_IMG_OFFSET;
 
-			/* if the logo is full-screen size, remove "fbcon_clear()" */
+			realsize =  header->blocks * 512;
+			readsize =  ROUNDUP((realsize + LOGO_IMG_HEADER_SIZE), blocksize) - blocksize;
+
+			/* if the logo is not full-screen size, clean screen */
 			if ((header->width != fb_display->width)
 						|| (header->height != fb_display->height))
 				fbcon_clear();
 
-			if (mmc_read(ptn + LOGO_IMG_HEADER_SIZE,
-				(uint32_t *)base,
-				(header->blocks * 512))) {
+			if (mmc_read(ptn + blocksize, (uint32_t *)(base + blocksize), readsize)) {
 				dprintf(CRITICAL, "ERROR: Cannot read splash image from partition\n");
 				return -1;
 			}
-			fbcon_extract_to_screen(header, base);
-			return 0;
-		}
 
-		/* 2 Raw BGR data */
-		if ((header->width != fb_display->width) || (header->height != fb_display->height)) {
-			dprintf(CRITICAL, "Logo config doesn't match with fb config. Fall back default logo\n");
-			return -1;
-		}
-		uint8_t *base = (uint8_t *) fb_display->base;
-		if (mmc_read(ptn + LOGO_IMG_HEADER_SIZE,
-			(uint32_t *)base,
-			((((header->width * header->height * fb_display->bpp/8) + 511) >> 9) << 9))) {
-			fbcon_clear();
-			dprintf(CRITICAL, "ERROR: Cannot read splash image from partition\n");
-			return -1;
-		}
+			fbcon_extract_to_screen(header, (base + LOGO_IMG_HEADER_SIZE));
+		} else { /* 2 Raw BGR data */
 
+			if ((header->width != fb_display->width) || (header->height != fb_display->height)) {
+				dprintf(CRITICAL, "Logo config doesn't match with fb config. Fall back default logo\n");
+				return -1;
+			}
+
+			realsize =  header->width * header->height * fb_display->bpp / 8;
+			readsize =  ROUNDUP((realsize + LOGO_IMG_HEADER_SIZE), blocksize) - blocksize;
+
+			if (blocksize == LOGO_IMG_HEADER_SIZE) { /* read the content directly */
+				if (mmc_read((ptn + LOGO_IMG_HEADER_SIZE), (uint32_t *)base, readsize)) {
+					fbcon_clear();
+					dprintf(CRITICAL, "ERROR: Cannot read splash image from partition\n");
+					return -1;
+				}
+			} else {
+				if (mmc_read(ptn + blocksize ,
+						(uint32_t *)(base + LOGO_IMG_OFFSET + blocksize), readsize)) {
+					dprintf(CRITICAL, "ERROR: Cannot read splash image from partition\n");
+					return -1;
+				}
+				memmove(base, (base + LOGO_IMG_OFFSET + LOGO_IMG_HEADER_SIZE), realsize);
+			}
+		}
 	}
 
 	return 0;
@@ -3318,7 +3428,6 @@ void aboot_fastboot_register_commands(void)
 void aboot_init(const struct app_descriptor *app)
 {
 	unsigned reboot_mode = 0;
-	unsigned hard_reboot_mode = 0;
 	bool boot_into_fastboot = false;
 
 	/* Setup page size information for nv storage */
@@ -3344,7 +3453,16 @@ void aboot_init(const struct app_descriptor *app)
 	if (!check_alarm_boot()) {
 #endif
 		dprintf(SPEW, "Display Init: Start\n");
+#if ENABLE_WBC
+		/* Wait if the display shutdown is in progress */
+		while(pm_app_display_shutdown_in_prgs());
+		if (!pm_appsbl_display_init_done())
+			target_display_init(device.display_panel);
+		else
+			display_image_on_screen();
+#else
 		target_display_init(device.display_panel);
+#endif
 		dprintf(SPEW, "Display Init: Done\n");
 #if NO_ALARM_DISPLAY
 	}
@@ -3391,20 +3509,26 @@ void aboot_init(const struct app_descriptor *app)
 		boot_into_fastboot = true;
 	#endif
 
+#if USE_PON_REBOOT_REG
+	reboot_mode = check_hard_reboot_mode();
+#else
+	reboot_mode = check_reboot_mode();
+#endif
+
 	#ifdef EFIDROID_SAFEBOOT
 	boot_into_fastboot = true;
 	#endif
 
-	reboot_mode = check_reboot_mode();
-	hard_reboot_mode = check_hard_reboot_mode();
-	if (reboot_mode == RECOVERY_MODE ||
-		hard_reboot_mode == RECOVERY_HARD_RESET_MODE) {
+	if (reboot_mode == RECOVERY_MODE)
+	{
 		boot_into_recovery = 1;
-	} else if(reboot_mode == FASTBOOT_MODE ||
-		hard_reboot_mode == FASTBOOT_HARD_RESET_MODE) {
+	}
+	else if(reboot_mode == FASTBOOT_MODE)
+	{
 		boot_into_fastboot = true;
-	} else if(reboot_mode == ALARM_BOOT ||
-		hard_reboot_mode == RTC_HARD_RESET_MODE) {
+	}
+	else if(reboot_mode == ALARM_BOOT)
+	{
 		boot_reason_alarm = true;
 	}
 

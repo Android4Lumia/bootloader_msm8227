@@ -26,9 +26,16 @@
  * OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+#if USE_PON_REBOOT_REG
+#define RECOVERY_MODE     0x20
+#define FASTBOOT_MODE     0x40
+#define ALARM_BOOT        0x60
+#else
 #define FASTBOOT_MODE     0x77665500
 #define RECOVERY_MODE     0x77665502
 #define ALARM_BOOT        0x77665503
+#endif
+
 #define RTC_TRG           4
 #define PON_SOFT_RB_SPARE 0x88F
 
@@ -44,3 +51,4 @@ unsigned check_hard_reboot_mode(void);
 uint32_t check_alarm_boot(void);
 
 void reboot_device(unsigned reboot_reason);
+void shutdown_device();

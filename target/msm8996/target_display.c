@@ -68,10 +68,6 @@
 #define REGULATOR_SIZE_IN_BYTES_8996	5
 #define LANE_SIZE_IN_BYTES_8996		20
 
-#define DSC_CMD_PANEL "dsc_cmd_panel"
-#define DSC_VID_PANEL "dsc_vid_panel"
-#define DSC_CMD_PANEL_STRING "1:dsi:0:none:1:qcom,mdss_dsi_nt35597_dsc_wqxga_cmd"
-#define DSC_VID_PANEL_STRING "1:dsi:0:none:1:qcom,mdss_dsi_nt35597_dsc_wqxga_video"
 /*---------------------------------------------------------------------------*/
 /* GPIO configuration                                                        */
 /*---------------------------------------------------------------------------*/
@@ -128,7 +124,6 @@ static uint32_t thulium_dsi_pll_enable_seq(uint32_t phy_base, uint32_t pll_base)
 static int thulium_wled_backlight_ctrl(uint8_t enable)
 {
 	qpnp_wled_enable_backlight(enable);
-	qpnp_ibb_enable(enable);
 	return NO_ERROR;
 }
 
@@ -247,8 +242,6 @@ int target_backlight_ctrl(struct backlight *bl, uint8_t enable)
 			pm_pwm_enable(false);
 			pm8x41_enable_mpp(&mpp, MPP_DISABLE);
 		}
-		/* Need delay before power on regulators */
-		mdelay(20);
 		/* Enable WLED backlight control */
 		ret = thulium_wled_backlight_ctrl(enable);
 		break;
@@ -264,8 +257,6 @@ int target_backlight_ctrl(struct backlight *bl, uint8_t enable)
 		} else {
 			pm8x41_enable_mpp(&mpp, MPP_DISABLE);
 		}
-		/* Need delay before power on regulators */
-		mdelay(20);
 		ret = thulium_pwm_backlight_ctrl(enable);
 		break;
 	default:
@@ -425,7 +416,7 @@ int target_ldo_ctrl(uint8_t enable, struct msm_panel_info *pinfo)
 		mdelay(10);
 		wled_init(pinfo);
 		qpnp_ibb_enable(true);	/* +5V and -5V */
-		mdelay(50);
+		mdelay(20);
 
 		if (pinfo->lcd_reg_en)
 			lcd_reg_enable();
@@ -463,14 +454,13 @@ int target_dsi_phy_config(struct mdss_dsi_phy_ctrl *phy_db)
 	return NO_ERROR;
 }
 
-bool target_display_panel_node(char *panel_name, char *pbuf, uint16_t buf_size)
+bool target_display_panel_node(char *pbuf, uint16_t buf_size)
 {
 	int prefix_string_len = strlen(DISPLAY_CMDLINE_PREFIX);
 	bool ret = true;
+	struct oem_panel_data oem = mdss_dsi_get_oem_data();
 
-	panel_name += strspn(panel_name, " ");
-
-	if (!strcmp(panel_name, HDMI_PANEL_NAME)) {
+	if (!strcmp(oem.panel, HDMI_PANEL_NAME)) {
 		if (buf_size < (prefix_string_len + LK_OVERRIDE_PANEL_LEN +
 				strlen(HDMI_CONTROLLER_STRING))) {
 			dprintf(CRITICAL, "command line argument is greater than buffer size\n");
@@ -482,28 +472,8 @@ bool target_display_panel_node(char *panel_name, char *pbuf, uint16_t buf_size)
 		strlcat(pbuf, LK_OVERRIDE_PANEL, buf_size);
 		buf_size -= LK_OVERRIDE_PANEL_LEN;
 		strlcat(pbuf, HDMI_CONTROLLER_STRING, buf_size);
-	} else if (!strcmp(panel_name, DSC_CMD_PANEL)) {
-		if (buf_size < (prefix_string_len +
-			strlen(DSC_CMD_PANEL_STRING))) {
-			dprintf(CRITICAL, "DSC command line argument is greater than buffer size\n");
-			return false;
-		}
-		strlcpy(pbuf, DISPLAY_CMDLINE_PREFIX, buf_size);
-		buf_size -= prefix_string_len;
-		pbuf += prefix_string_len;
-		strlcpy(pbuf, DSC_CMD_PANEL_STRING, buf_size);
-	} else if (!strcmp(panel_name, DSC_VID_PANEL)) {
-		if (buf_size < (prefix_string_len +
-			strlen(DSC_VID_PANEL_STRING))) {
-			dprintf(CRITICAL, "DSC command line argument is greater than buffer size\n");
-			return false;
-		}
-		strlcpy(pbuf, DISPLAY_CMDLINE_PREFIX, buf_size);
-		buf_size -= prefix_string_len;
-		pbuf += prefix_string_len;
-		strlcpy(pbuf, DSC_VID_PANEL_STRING, buf_size);
 	} else {
-		ret = gcdb_display_cmdline_arg(panel_name, pbuf, buf_size);
+		ret = gcdb_display_cmdline_arg(pbuf, buf_size);
 	}
 
 	return ret;
@@ -511,30 +481,29 @@ bool target_display_panel_node(char *panel_name, char *pbuf, uint16_t buf_size)
 
 void target_display_init(const char *panel_name)
 {
-	char cont_splash = '\0';
+	struct oem_panel_data oem;
 
-	set_panel_cmd_string(panel_name, &cont_splash);
-	panel_name += strspn(panel_name, " ");
-	if (!strcmp(panel_name, NO_PANEL_CONFIG)
-		|| !strcmp(panel_name, SIM_VIDEO_PANEL)
-		|| !strcmp(panel_name, SIM_DUALDSI_VIDEO_PANEL)
-		|| !strcmp(panel_name, SIM_CMD_PANEL)
-		|| !strcmp(panel_name, SIM_DUALDSI_CMD_PANEL)
-		|| !strcmp(panel_name, DSC_CMD_PANEL)
-		|| !strcmp(panel_name, DSC_VID_PANEL)) {
+	set_panel_cmd_string(panel_name);
+	oem = mdss_dsi_get_oem_data();
+	if (!strcmp(oem.panel, NO_PANEL_CONFIG)
+		|| !strcmp(oem.panel, SIM_VIDEO_PANEL)
+		|| !strcmp(oem.panel, SIM_DUALDSI_VIDEO_PANEL)
+		|| !strcmp(oem.panel, SIM_CMD_PANEL)
+		|| !strcmp(oem.panel, SIM_DUALDSI_CMD_PANEL)
+		|| oem.skip) {
 		dprintf(INFO, "Selected panel: %s\nSkip panel configuration\n",
-			panel_name);
+			oem.panel);
 		return;
-	} else if (!strcmp(panel_name, HDMI_PANEL_NAME)) {
+	} else if (!strcmp(oem.panel, HDMI_PANEL_NAME)) {
 		return;
 	}
 
-	if (gcdb_display_init(panel_name, MDP_REV_50, (void *)MIPI_FB_ADDR)) {
+	if (gcdb_display_init(oem.panel, MDP_REV_50, (void *)MIPI_FB_ADDR)) {
 		target_force_cont_splash_disable(true);
 		msm_display_off();
 	}
 
-	if (cont_splash == '0') {
+	if (!oem.cont_splash) {
 		dprintf(INFO, "Forcing continuous splash disable\n");
 		target_force_cont_splash_disable(true);
 	}

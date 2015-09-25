@@ -47,17 +47,35 @@ static struct rpmb_frame read_result_reg =
 	.requestresponse[1] = READ_RESULT_FLAG,
 };
 
-int rpmb_write_emmc(struct mmc_device *dev,uint32_t *req_buf, uint32_t blk_cnt, uint32_t *resp_buf, uint32_t *resp_len)
+int rpmb_write_emmc(struct mmc_device *dev,uint32_t *req_buf, uint32_t blk_cnt, uint32_t rel_wr_count, uint32_t *resp_buf, uint32_t *resp_len)
 {
-	uint32_t i;
+	uint32_t i, num_trans = 0;
 	int ret = 0;
 	struct mmc_command cmd[3] = {{0},{0},{0}};
 	struct rpmb_frame *result = (struct rpmb_frame *)resp_buf;
 
-	for (i = 0; i < blk_cnt; i++)
+	dprintf(INFO, "rpmb write command called with blk_cnt and rel_wr_count: 0x%x 0x%x\n", blk_cnt, rel_wr_count);
+	if (rel_wr_count == 0x2)
+	{
+		// if reliable write count reported by secure app is 2 then we can
+		// send two half sectors in one transaction. So overall number of
+		// transactions would be total block count by 2.
+		num_trans = blk_cnt / 2;
+	}
+	else if(rel_wr_count == 0x1)
+	{
+		num_trans = blk_cnt; // rel_rw_count = 1 for emmc 5.0 and below
+	}
+	else if(rel_wr_count == 0x20)
+	{
+		num_trans = blk_cnt / 32;
+	}
+
+	for (i = 0; i < num_trans; i++)
 	{
 #if DEBUG_RPMB
-		dump_rpmb_frame((uint8_t *)req_buf, "request");
+		for(uint8_t j = 0; j < rel_wr_count; j++)
+			dump_rpmb_frame((uint8_t *)req_buf + (j * 512), "request");
 #endif
 
 		/* CMD25 program data packet */
@@ -69,8 +87,16 @@ int rpmb_write_emmc(struct mmc_device *dev,uint32_t *req_buf, uint32_t blk_cnt, 
 		cmd[0].trans_mode = SDHCI_MMC_WRITE;
 		cmd[0].data_present = 0x1;
 		cmd[0].data.data_ptr = (void *)req_buf;
-		cmd[0].data.num_blocks = RPMB_MIN_BLK_CNT;
-
+		if (rel_wr_count == 0x1)
+		{
+			cmd[0].rel_write = 0;
+			cmd[0].data.num_blocks = RPMB_MIN_BLK_CNT;
+		}
+		else if(rel_wr_count == 0x2 || rel_wr_count == 0x20)
+		{
+			cmd[0].rel_write = 1;
+			cmd[0].data.num_blocks = rel_wr_count;
+		}
 		/* CMD25 Result Register Read Request Packet */
 		cmd[1].write_flag = false;
 		cmd[1].cmd_index = CMD25_WRITE_MULTIPLE_BLOCK;
@@ -101,6 +127,9 @@ int rpmb_write_emmc(struct mmc_device *dev,uint32_t *req_buf, uint32_t blk_cnt, 
 			break;
 		}
 
+#if DEBUG_RPMB
+		dump_rpmb_frame((uint8_t *)resp_buf, "response");
+#endif
 		if (result->result[0] == 0x80)
 		{
 			dprintf(CRITICAL, "Max write counter reached: \n");
@@ -112,12 +141,7 @@ int rpmb_write_emmc(struct mmc_device *dev,uint32_t *req_buf, uint32_t blk_cnt, 
 			dprintf(CRITICAL, "%s\n", str_err[result->result[1]]);
 			break;
 		}
-
-		req_buf = (uint32_t*) ((uint8_t*)req_buf + RPMB_BLK_SIZE);
-
-#if DEBUG_RPMB
-		dump_rpmb_frame((uint8_t *)resp_buf, "response");
-#endif
+		req_buf = (uint32_t*) ((uint8_t*)req_buf + (RPMB_BLK_SIZE * rel_wr_count));
 	}
 	*resp_len = RPMB_MIN_BLK_CNT * RPMB_BLK_SIZE;
 

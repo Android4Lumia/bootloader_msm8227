@@ -56,22 +56,18 @@
 
 /* SCM interface as per ARM spec present? */
 bool scm_arm_support;
-static uint32_t scm_io_write(uint32_t address, uint32_t val);
 
 bool is_scm_armv8_support()
 {
 	return scm_arm_support;
 }
 
-static void scm_arm_support_available(uint32_t svc_id, uint32_t cmd_id)
+int is_scm_call_available(uint32_t svc_id, uint32_t cmd_id)
 {
-	uint32_t ret;
+	int ret;
 	scmcall_arg scm_arg = {0};
 	scmcall_ret scm_ret = {0};
-	/* Make a call to check if SCM call available using new interface,
-	 * if this returns 0 then scm implementation as per arm spec
-	 * otherwise use the old interface for scm calls
-	 */
+
 	scm_arg.x0 = MAKE_SIP_SCM_CMD(SCM_SVC_INFO, IS_CALL_AVAIL_CMD);
 	scm_arg.x1 = MAKE_SCM_ARGS(0x1);
 	scm_arg.x2 = MAKE_SIP_SCM_CMD(svc_id, cmd_id);
@@ -79,13 +75,31 @@ static void scm_arm_support_available(uint32_t svc_id, uint32_t cmd_id)
 	ret = scm_call2(&scm_arg, &scm_ret);
 
 	if (!ret)
-		scm_arm_support = true;
+		return scm_ret.x1;
+
+	return ret;
 }
 
+static int scm_arm_support_available(uint32_t svc_id, uint32_t cmd_id)
+{
+	int ret;
+
+	ret = is_scm_call_available(SCM_SVC_INFO, IS_CALL_AVAIL_CMD);
+
+	if (ret > 0)
+		scm_arm_support = true;
+
+	return ret;
+}
 
 void scm_init()
 {
-	scm_arm_support_available(SCM_SVC_INFO, IS_CALL_AVAIL_CMD);
+	int ret;
+
+	ret = scm_arm_support_available(SCM_SVC_INFO, IS_CALL_AVAIL_CMD);
+
+	if (ret < 0)
+		dprintf(CRITICAL, "Failed to initialize SCM\n");
 }
 
 /**
@@ -1012,7 +1026,7 @@ void scm_elexec_call(paddr_t kernel_entry, paddr_t dtb_offset)
 	uint32_t cmd_id = SCM_SVC_MILESTONE_CMD_ID;
 	void *cmd_buf;
 	size_t cmd_len;
-	static el1_system_param param;
+	static el1_system_param param __attribute__((aligned(0x1000)));
 	scmcall_arg scm_arg = {0};
 
 	param.el1_x0 = dtb_offset;
@@ -1188,7 +1202,7 @@ uint32_t scm_call2(scmcall_arg *arg, scmcall_ret *ret)
 		{
 			indir_arg[i] = arg->x5[i];
 		}
-		arch_clean_invalidate_cache_range((addr_t) indir_arg, ROUNDUP((SCM_INDIR_MAX_LEN * sizeof(uint32_t)), CACHE_LINE));
+		arch_clean_invalidate_cache_range((addr_t) indir_arg, (SCM_INDIR_MAX_LEN * sizeof(uint32_t)));
 		x5 = (addr_t) indir_arg;
 	}
 
@@ -1260,7 +1274,7 @@ static uint32_t scm_io_read(addr_t address)
 	return ret;
 }
 
-static uint32_t scm_io_write(uint32_t address, uint32_t val)
+uint32_t scm_io_write(uint32_t address, uint32_t val)
 {
 	uint32_t ret;
 	scmcall_arg scm_arg = {0};
@@ -1279,7 +1293,7 @@ static uint32_t scm_io_write(uint32_t address, uint32_t val)
 	return ret;
 }
 
-static int scm_call2_atomic(uint32_t svc, uint32_t cmd, uint32_t arg1, uint32_t arg2)
+int scm_call2_atomic(uint32_t svc, uint32_t cmd, uint32_t arg1, uint32_t arg2)
 {
 	uint32_t ret = 0;
 	scmcall_arg scm_arg = {0};
@@ -1313,14 +1327,16 @@ int scm_dload_mode(int mode)
 		dload_type = 0;
 
 	/* Write to the Boot MISC register */
-	ret = scm_call2_atomic(SCM_SVC_BOOT, SCM_DLOAD_CMD, dload_type, 0);
+	ret = is_scm_call_available(SCM_SVC_BOOT, SCM_DLOAD_CMD);
 
-	if (ret) {
+	if (ret > 0)
+		ret = scm_call2_atomic(SCM_SVC_BOOT, SCM_DLOAD_CMD, dload_type, 0);
+	else
 		ret = scm_io_write(TCSR_BOOT_MISC_DETECT,dload_type);
-		if(ret) {
-			dprintf(CRITICAL, "Failed to write to boot misc: %d\n", ret);
-			return ret;
-		}
+
+	if(ret) {
+		dprintf(CRITICAL, "Failed to write to boot misc: %d\n", ret);
+		return ret;
 	}
 
 	scm_check_boot_fuses();
@@ -1333,5 +1349,23 @@ int scm_dload_mode(int mode)
 	}
 
 	return ret;
+}
+
+bool scm_device_enter_dload()
+{
+	uint32_t ret = 0;
+
+	scmcall_arg scm_arg = {0};
+	scmcall_ret scm_ret = {0};
+
+	scm_arg.x0 = MAKE_SIP_SCM_CMD(TZ_SVC_DLOAD_MODE, SCM_DLOAD_CMD);
+	ret = scm_call2(&scm_arg, &scm_ret);
+	if (ret)
+		dprintf(CRITICAL, "SCM call to check dload mode failed: %x\n", ret);
+
+	if (!ret && (scm_io_read(TCSR_BOOT_MISC_DETECT) == SCM_DLOAD_MODE))
+		return true;
+
+	return false;
 }
 #endif

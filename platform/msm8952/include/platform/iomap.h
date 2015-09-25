@@ -70,6 +70,9 @@
 
 #define CLK_CTL_BASE                       0x1800000
 
+#define PMI_SLAVE_ID 3
+#define PMI_ADDR_BASE (PMI_SLAVE_ID << 16)
+
 #define SPMI_BASE                          0x02000000
 #define SPMI_GENI_BASE                     (SPMI_BASE + 0xA000)
 #define SPMI_PIC_BASE                      (SPMI_BASE +  0x01800000)
@@ -99,6 +102,7 @@
 #define APCS_CLOCK_BRANCH_ENA_VOTE         (CLK_CTL_BASE + 0x45004)
 #define GPLL4_MODE                         (CLK_CTL_BASE + 0x24000)
 #define GPLL4_STATUS                       (CLK_CTL_BASE + 0x24024)
+#define GPLL6_STATUS                       (CLK_CTL_BASE + 0x3701C)
 
 /* SDCC */
 #define SDC1_HDRV_PULL_CTL                 (TLMM_BASE_ADDR + 0x10A000)
@@ -149,11 +153,11 @@
 /* MDSS */
 #define MIPI_DSI_BASE               (0x1A98000)
 #define MIPI_DSI0_BASE              MIPI_DSI_BASE
-#define MIPI_DSI1_BASE              MIPI_DSI_BASE
+#define MIPI_DSI1_BASE              (0x1A96000)
 #define DSI0_PHY_BASE               (0x1A98500)
-#define DSI1_PHY_BASE               DSI0_PHY_BASE
+#define DSI1_PHY_BASE               (0x1A96400)
 #define DSI0_PLL_BASE               (0x1A98300)
-#define DSI1_PLL_BASE               DSI0_PLL_BASE
+#define DSI1_PLL_BASE               (0x1A96A00)
 #define DSI0_REGULATOR_BASE         (0x1A98780)
 #define DSI1_REGULATOR_BASE         DSI0_REGULATOR_BASE
 #define MDP_BASE                    (0x1A00000)
@@ -284,6 +288,26 @@
 #endif
 #define MDP_INTF_1_BASE                         REG_MDP(0x12700)
 
+#ifdef MDP_INTF_2_BASE
+#undef MDP_INTF_2_BASE
+#endif
+#define MDP_INTF_2_BASE                         REG_MDP(0x12F00)
+
+#ifdef MDP_REG_SPLIT_DISPLAY_EN
+#undef MDP_REG_SPLIT_DISPLAY_EN
+#endif
+#define MDP_REG_SPLIT_DISPLAY_EN                REG_MDP(0x12F4)
+
+#ifdef MDP_REG_SPLIT_DISPLAY_UPPER_PIPE_CTL
+#undef MDP_REG_SPLIT_DISPLAY_UPPER_PIPE_CTL
+#endif
+#define MDP_REG_SPLIT_DISPLAY_UPPER_PIPE_CTL    REG_MDP(0x12F8)
+
+#ifdef MDP_REG_SPLIT_DISPLAY_LOWER_PIPE_CTL
+#undef MDP_REG_SPLIT_DISPLAY_LOWER_PIPE_CTL
+#endif
+#define MDP_REG_SPLIT_DISPLAY_LOWER_PIPE_CTL    REG_MDP(0x13F0)
+
 #ifdef MMSS_MDP_SMP_ALLOC_W_BASE
 #undef MMSS_MDP_SMP_ALLOC_W_BASE
 #endif
@@ -359,6 +383,35 @@
 #endif
 #define VBIF_VBIF_IN_WR_LIM_CONF1               REG_MDP(0xc80C4)
 
+#ifdef MDP_INTF_2_TIMING_ENGINE_EN
+#undef MDP_INTF_2_TIMING_ENGINE_EN
+#endif
+#define MDP_INTF_2_TIMING_ENGINE_EN		REG_MDP(0x12F00)
+
+#ifdef MDP_PP_0_BASE
+#undef MDP_PP_0_BASE
+#endif
+#define MDP_PP_0_BASE				REG_MDP(0x71000)
+
+#ifdef MDP_PP_1_BASE
+#undef MDP_PP_1_BASE
+#endif
+#define MDP_PP_1_BASE				REG_MDP(0x71800)
+
+#ifdef MDSS_MDP_REG_DCE_SEL
+#undef MDSS_MDP_REG_DCE_SEL
+#endif
+#define MDSS_MDP_REG_DCE_SEL			REG_MDP(0x1428)
+
+#ifdef MDSS_MDP_PP_DCE_DATA_OUT_SWAP
+#undef MDSS_MDP_PP_DCE_DATA_OUT_SWAP
+#endif
+#define MDSS_MDP_PP_DCE_DATA_OUT_SWAP		0x0CC
+
+#define MDP_DSC_0_BASE				REG_MDP(0x81000)
+#define MDP_DSC_1_BASE				REG_MDP(0x81400)
+
+
 #define SOFT_RESET                  0x118
 #define CLK_CTRL                    0x11C
 #define TRIG_CTRL                   0x084
@@ -395,6 +448,17 @@
 #define VIDEO_MODE_CTRL             0x010
 #define HS_TIMER_CTRL               0x0BC
 
+#define VIDEO_COMPRESSION_MODE_CTRL	0x2A0
+#define VIDEO_COMPRESSION_MODE_CTRL_2	0x2A4
+#define CMD_COMPRESSION_MODE_CTRL	0x2A8
+#define CMD_COMPRESSION_MODE_CTRL_2	0x2AC
+#define CMD_COMPRESSION_MODE_CTRL_3	0x2B0
+
 #define TCSR_TZ_WONCE               0x193D000
 #define TCSR_BOOT_MISC_DETECT       0x193D100
+
+#define APPS_WDOG_BARK_VAL_REG      0x0B017010
+#define APPS_WDOG_BITE_VAL_REG      0x0B017014
+#define APPS_WDOG_RESET_REG         0x0B017008
+#define APPS_WDOG_CTL_REG           0x0B017004
 #endif

@@ -60,7 +60,9 @@ static int dsi_platform_base_offset_adjust(uint32_t base)
 static int dsi_panel_ctl_base_setup(struct msm_panel_info *pinfo,
 	char *panel_destination)
 {
-	int base_offset = 0, base1_offset = 0;
+	int base_offset = 0, base1_offset = 0, base_phy_offset = 0,
+	base1_phy_offset = 0, base_phy_pll_offset = 0,
+	base1_phy_pll_offset = 0, base_phy_reg_offset = 0;
 
 	/*
 	 * Base offsets may vary for few platforms. Add the difference to get
@@ -68,33 +70,38 @@ static int dsi_panel_ctl_base_setup(struct msm_panel_info *pinfo,
 	 */
 	base_offset = dsi_platform_base_offset_adjust(MIPI_DSI0_BASE);
 	base1_offset = dsi_platform_base_offset_adjust(MIPI_DSI1_BASE);
+	base_phy_offset = dsi_platform_base_offset_adjust(DSI0_PHY_BASE);
+	base1_phy_offset = dsi_platform_base_offset_adjust(DSI1_PHY_BASE);
+	base_phy_pll_offset = dsi_platform_base_offset_adjust(DSI0_PLL_BASE);
+	base1_phy_pll_offset = dsi_platform_base_offset_adjust(DSI1_PLL_BASE);
+	base_phy_reg_offset = dsi_platform_base_offset_adjust(DSI0_REGULATOR_BASE);
 	dprintf(SPEW, "base offset = %d, %x\n", base_offset, base_offset);
 
 	if (!strcmp(panel_destination, "DISPLAY_1")) {
 		pinfo->dest = DISPLAY_1;
 		pinfo->mipi.ctl_base = MIPI_DSI0_BASE + base_offset;
-		pinfo->mipi.phy_base = DSI0_PHY_BASE + base_offset;
+		pinfo->mipi.phy_base = DSI0_PHY_BASE + base_phy_offset;
 		pinfo->mipi.sctl_base = MIPI_DSI1_BASE + base1_offset;
-		pinfo->mipi.sphy_base = DSI1_PHY_BASE + base1_offset;
+		pinfo->mipi.sphy_base = DSI1_PHY_BASE + base1_phy_offset;
 		if (pinfo->mipi.use_dsi1_pll) {
 			dprintf(CRITICAL, "%s: Invalid combination: DSI0 controller + DSI1 PLL, using DSI0 PLL\n",
 				__func__);
 			pinfo->mipi.use_dsi1_pll = 0;
 		}
-		pinfo->mipi.pll_base = DSI0_PLL_BASE + base_offset;
-		pinfo->mipi.spll_base = DSI1_PLL_BASE + base1_offset;
+		pinfo->mipi.pll_base = DSI0_PLL_BASE + base_phy_pll_offset;
+		pinfo->mipi.spll_base = DSI1_PLL_BASE + base1_phy_pll_offset;
 	} else if (!strcmp(panel_destination, "DISPLAY_2")) {
 		pinfo->dest = DISPLAY_2;
 		pinfo->mipi.ctl_base = MIPI_DSI1_BASE + base1_offset;
-		pinfo->mipi.phy_base = DSI1_PHY_BASE + base1_offset;
+		pinfo->mipi.phy_base = DSI1_PHY_BASE + base1_phy_offset;
 		pinfo->mipi.sctl_base = MIPI_DSI0_BASE + base_offset;
-		pinfo->mipi.sphy_base = DSI0_PHY_BASE + base_offset;
+		pinfo->mipi.sphy_base = DSI0_PHY_BASE + base_phy_offset;
 		if (pinfo->mipi.use_dsi1_pll) {
-			pinfo->mipi.pll_base = DSI1_PLL_BASE + base1_offset;
-			pinfo->mipi.spll_base = DSI0_PLL_BASE + base_offset;
+			pinfo->mipi.pll_base = DSI1_PLL_BASE + base1_phy_pll_offset;
+			pinfo->mipi.spll_base = DSI0_PLL_BASE + base_phy_pll_offset;
 		} else {
-			pinfo->mipi.pll_base = DSI0_PLL_BASE + base_offset;
-			pinfo->mipi.spll_base = DSI1_PLL_BASE + base1_offset;
+			pinfo->mipi.pll_base = DSI0_PLL_BASE + base_phy_pll_offset;
+			pinfo->mipi.spll_base = DSI1_PLL_BASE + base1_phy_pll_offset;
 		}
 	} else {
 		pinfo->dest = DISPLAY_UNKNOWN;
@@ -104,8 +111,8 @@ static int dsi_panel_ctl_base_setup(struct msm_panel_info *pinfo,
 	}
 
 	/* Both DSI0 and DSI1 use the same regulator */
-	pinfo->mipi.reg_base = DSI0_REGULATOR_BASE + base_offset;
-	pinfo->mipi.sreg_base = DSI0_REGULATOR_BASE + base_offset;
+	pinfo->mipi.reg_base = DSI0_REGULATOR_BASE + base_phy_reg_offset;
+	pinfo->mipi.sreg_base = DSI0_REGULATOR_BASE + base_phy_reg_offset;
 
 	dprintf(SPEW, "%s: panel dest=%s, ctl_base=0x%08x, phy_base=0x%08x\n",
 		__func__, panel_destination, pinfo->mipi.ctl_base,
@@ -241,30 +248,52 @@ int dsi_panel_init(struct msm_panel_info *pinfo,
 	pinfo->mipi.t_clk_pre = pstruct->paneltiminginfo->tclk_pre;
 	pinfo->mipi.mdp_trigger = pstruct->paneltiminginfo->dsi_mdp_trigger;
 	pinfo->mipi.dma_trigger = pstruct->paneltiminginfo->dsi_dma_trigger;
+	pinfo->fbc.comp_ratio = 1;
 
-	pinfo->fbc.enabled = pstruct->fbcinfo.enabled;
-	if (pinfo->fbc.enabled) {
+	if (pinfo->compression_mode == COMPRESSION_DSC) {
+		struct dsc_desc *dsc = NULL;
+
+		pinfo->dsc.major = pstruct->dsc_paras.major;
+		pinfo->dsc.minor = pstruct->dsc_paras.minor;
+		pinfo->dsc.pps_id = pstruct->dsc_paras.pps_id;
+		pinfo->dsc.slice_height = pstruct->dsc_paras.slice_height;
+		pinfo->dsc.slice_width = pstruct->dsc_paras.slice_width;
+		pinfo->dsc.bpp = pstruct->dsc_paras.bpp;
+		pinfo->dsc.bpc = pstruct->dsc_paras.bpc;
+		pinfo->dsc.slice_per_pkt = pstruct->dsc_paras.slice_per_pkt;
+		pinfo->dsc.ich_reset_value = pstruct->dsc_paras.ich_reset_value;
+		pinfo->dsc.ich_reset_override = pstruct->dsc_paras.ich_reset_override;
+		pinfo->dsc.block_pred_enable = pstruct->dsc_paras.block_prediction;
+		pinfo->dsc.enable_422 = 0;
+		pinfo->dsc.convert_rgb = 1;
+		pinfo->dsc.vbr_enable = 0;
+
+		dsc = &pinfo->dsc;
+		if (dsc) {
+			if (dsc->parameter_calc)
+                                dsc->parameter_calc(pinfo);
+                }
+	} else if (pinfo->compression_mode == COMPRESSION_FBC) {
 		pinfo->fbc.enabled = pstruct->fbcinfo.enabled;
-		pinfo->fbc.comp_ratio= pstruct->fbcinfo.comp_ratio;
-		pinfo->fbc.comp_mode = pstruct->fbcinfo.comp_mode;
-		pinfo->fbc.qerr_enable = pstruct->fbcinfo.qerr_enable;
-		pinfo->fbc.cd_bias = pstruct->fbcinfo.cd_bias;
-		pinfo->fbc.pat_enable = pstruct->fbcinfo.pat_enable;
-		pinfo->fbc.vlc_enable = pstruct->fbcinfo.vlc_enable;
-		pinfo->fbc.bflc_enable = pstruct->fbcinfo.bflc_enable;
-		pinfo->fbc.line_x_budget = pstruct->fbcinfo.line_x_budget;
-		pinfo->fbc.block_x_budget = pstruct->fbcinfo.block_x_budget;
-		pinfo->fbc.block_budget = pstruct->fbcinfo.block_budget;
-		pinfo->fbc.lossless_mode_thd = pstruct->fbcinfo.lossless_mode_thd;
-		pinfo->fbc.lossy_mode_thd = pstruct->fbcinfo.lossy_mode_thd;
-		pinfo->fbc.lossy_rgb_thd = pstruct->fbcinfo.lossy_rgb_thd;
-		pinfo->fbc.lossy_mode_idx = pstruct->fbcinfo.lossy_mode_idx;
-		pinfo->fbc.slice_height = pstruct->fbcinfo.slice_height;
-		pinfo->fbc.pred_mode = pstruct->fbcinfo.pred_mode;
-		pinfo->fbc.max_pred_err = pstruct->fbcinfo.max_pred_err;
-
-	} else {
-		pinfo->fbc.comp_ratio = 1;
+		if (pinfo->fbc.enabled) {
+			pinfo->fbc.comp_ratio= pstruct->fbcinfo.comp_ratio;
+			pinfo->fbc.comp_mode = pstruct->fbcinfo.comp_mode;
+			pinfo->fbc.qerr_enable = pstruct->fbcinfo.qerr_enable;
+			pinfo->fbc.cd_bias = pstruct->fbcinfo.cd_bias;
+			pinfo->fbc.pat_enable = pstruct->fbcinfo.pat_enable;
+			pinfo->fbc.vlc_enable = pstruct->fbcinfo.vlc_enable;
+			pinfo->fbc.bflc_enable = pstruct->fbcinfo.bflc_enable;
+			pinfo->fbc.line_x_budget = pstruct->fbcinfo.line_x_budget;
+			pinfo->fbc.block_x_budget = pstruct->fbcinfo.block_x_budget;
+			pinfo->fbc.block_budget = pstruct->fbcinfo.block_budget;
+			pinfo->fbc.lossless_mode_thd = pstruct->fbcinfo.lossless_mode_thd;
+			pinfo->fbc.lossy_mode_thd = pstruct->fbcinfo.lossy_mode_thd;
+			pinfo->fbc.lossy_rgb_thd = pstruct->fbcinfo.lossy_rgb_thd;
+			pinfo->fbc.lossy_mode_idx = pstruct->fbcinfo.lossy_mode_idx;
+			pinfo->fbc.slice_height = pstruct->fbcinfo.slice_height;
+			pinfo->fbc.pred_mode = pstruct->fbcinfo.pred_mode;
+			pinfo->fbc.max_pred_err = pstruct->fbcinfo.max_pred_err;
+		}
 	}
 
 	pinfo->pre_on = dsi_panel_pre_on;
@@ -328,6 +357,7 @@ int dsi_video_panel_config(struct msm_panel_info *pinfo,
 	uint32_t final_xres, final_yres, final_width;
 	uint32_t final_height, final_hbp, final_hfp,final_vbp;
 	uint32_t final_vfp, final_hpw, final_vpw, low_pwr_stop;
+	struct dsc_desc *dsc = NULL;
 
 	if (pinfo->mipi.dual_dsi)
 		panel_width = panel_width / 2;
@@ -341,14 +371,19 @@ int dsi_video_panel_config(struct msm_panel_info *pinfo,
 	if (pinfo->mipi.data_lane3)
 		lane_enable |= (1 << 3);
 
+	if (pinfo->compression_mode == COMPRESSION_DSC) {
+		dsc = &pinfo->dsc;
+		panel_width = dsc->pclk_per_line;
+	}
+
 	final_xres = panel_width;
 	final_width = panel_width + pinfo->lcdc.xres_pad;
 
 	if (pinfo->fbc.enabled && pinfo->fbc.comp_ratio) {
 		final_xres /= pinfo->fbc.comp_ratio;
 		final_width /=	pinfo->fbc.comp_ratio;
-		dprintf(SPEW, "DSI xres =%d final_width=%d\n", final_xres,
-				final_width);
+		dprintf(SPEW, "DSI xres =%d final_width=%d\n",
+				final_xres, final_width);
 	}
 	final_yres = pinfo->yres;
 	final_height = pinfo->yres + pinfo->lcdc.yres_pad;
@@ -362,7 +397,8 @@ int dsi_video_panel_config(struct msm_panel_info *pinfo,
 			(pinfo->mipi.hbp_power_stop << 4) |
 			pinfo->mipi.hsa_power_stop;
 
-	ret = mdss_dsi_video_mode_config(final_width, final_height,
+	ret = mdss_dsi_video_mode_config(pinfo,
+			final_width, final_height,
 			final_xres, final_yres,
 			final_hfp, final_hbp + final_hpw,
 			final_vfp, final_vbp + final_vpw,
@@ -377,7 +413,8 @@ int dsi_video_panel_config(struct msm_panel_info *pinfo,
 			pinfo->mipi.ctl_base);
 
 	if (pinfo->mipi.dual_dsi)
-		ret = mdss_dsi_video_mode_config(final_width, final_height,
+		ret = mdss_dsi_video_mode_config(pinfo,
+				final_width, final_height,
 				final_xres, final_yres,
 				final_hfp, final_hbp + final_hpw,
 				final_vfp, final_vbp + final_vpw,
@@ -403,6 +440,7 @@ int dsi_cmd_panel_config (struct msm_panel_info *pinfo,
 	uint32_t panel_width = pinfo->xres;
 	uint32_t final_xres, final_yres, final_width;
 	uint32_t final_height;
+	struct dsc_desc *dsc = NULL;
 
 	if (pinfo->mipi.dual_dsi)
 		panel_width = panel_width / 2;
@@ -416,19 +454,26 @@ int dsi_cmd_panel_config (struct msm_panel_info *pinfo,
 	if (pinfo->mipi.data_lane3)
 		lane_en |= (1 << 3);
 
+	if (pinfo->compression_mode == COMPRESSION_DSC) {
+		dsc = &pinfo->dsc;
+		panel_width = dsc->pclk_per_line;
+	}
+
 	final_xres = panel_width;
 	final_width = panel_width + pinfo->lcdc.xres_pad;
 
-	if (pinfo->fbc.enabled && pinfo->fbc.comp_ratio) {
-		final_xres /= pinfo->fbc.comp_ratio;
-		final_width /=	pinfo->fbc.comp_ratio;
-		dprintf(SPEW, "DSI xres =%d final_width=%d\n", final_xres,
-				final_width);
+	if (pinfo->compression_mode == COMPRESSION_FBC) {
+		if (pinfo->fbc.enabled && pinfo->fbc.comp_ratio) {
+			final_xres /= pinfo->fbc.comp_ratio;
+			final_width /=	pinfo->fbc.comp_ratio;
+			dprintf(SPEW, "DSI xres =%d final_width=%d\n",
+						final_xres, final_width);
+		}
 	}
 	final_yres = pinfo->yres;
 	final_height = pinfo->yres + pinfo->lcdc.yres_pad;
 
-	ret = mdss_dsi_cmd_mode_config(final_width, final_height,
+	ret = mdss_dsi_cmd_mode_config(pinfo, final_width, final_height,
 			final_xres, final_yres,
 			pinfo->mipi.dst_format,
 			ystride, lane_en,
@@ -436,7 +481,7 @@ int dsi_cmd_panel_config (struct msm_panel_info *pinfo,
 			pinfo->mipi.ctl_base);
 
 	if (pinfo->mipi.dual_dsi)
-		ret = mdss_dsi_cmd_mode_config(final_width, final_height,
+		ret = mdss_dsi_cmd_mode_config(pinfo, final_width, final_height,
 				final_xres, final_yres,
 				pinfo->mipi.dst_format,
 				ystride, lane_en,
@@ -482,8 +527,6 @@ int32_t panel_name_to_id(struct panel_list supp_panels[],
 		return panel_id;
 	}
 
-	/* Remove any leading whitespaces */
-	panel_name += strspn(panel_name, " ");
 	for (i = 0; i < supp_panels_size; i++) {
 		if (!strncmp(panel_name, supp_panels[i].name,
 			MAX_PANEL_ID_LEN)) {

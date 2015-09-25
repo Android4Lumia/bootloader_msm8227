@@ -23,6 +23,11 @@ OBJS += \
 	$(LOCAL_DIR)/qgic_common.o \
 	$(LOCAL_DIR)/crc32.o
 
+ifeq ($(ENABLE_WDOG_SUPPORT),1)
+OBJS += \
+	$(LOCAL_DIR)/wdog.o
+endif
+
 ifeq ($(ENABLE_QGIC3), 1)
 OBJS += $(LOCAL_DIR)/qgic_v3.o
 endif
@@ -474,7 +479,8 @@ DEFINES += DISPLAY_TYPE_MDSS=1
 			$(LOCAL_DIR)/mipi_dsi_autopll.o \
 			$(LOCAL_DIR)/mipi_dsi_autopll_20nm.o \
 			$(LOCAL_DIR)/mdss_hdmi.o \
-			$(LOCAL_DIR)/hdmi_pll_20nm.o
+			$(LOCAL_DIR)/hdmi_pll_20nm.o \
+			$(LOCAL_DIR)/dload_util.o
 endif
 
 ifeq ($(PLATFORM),msm8909)
@@ -509,6 +515,24 @@ DEFINES += DISPLAY_TYPE_MDSS=1
 			$(LOCAL_DIR)/mipi_dsi_autopll.o
 endif
 
+ifeq ($(PLATFORM),mdmfermium)
+	OBJS += $(LOCAL_DIR)/qgic.o \
+			$(LOCAL_DIR)/qtimer.o \
+			$(LOCAL_DIR)/qtimer_mmap.o \
+			$(LOCAL_DIR)/interrupts.o \
+			$(LOCAL_DIR)/clock.o \
+			$(LOCAL_DIR)/clock_pll.o \
+			$(LOCAL_DIR)/clock_lib2.o \
+			$(LOCAL_DIR)/uart_dm.o \
+			$(LOCAL_DIR)/board.o \
+			$(LOCAL_DIR)/spmi.o \
+			$(LOCAL_DIR)/bam.o \
+			$(LOCAL_DIR)/qpic_nand.o \
+			$(LOCAL_DIR)/flash-ubi.o \
+			$(LOCAL_DIR)/scm.o \
+			$(LOCAL_DIR)/dev_tree.o
+endif
+
 ifeq ($(PLATFORM),msm8996)
 DEFINES += DISPLAY_TYPE_MDSS=1
 	OBJS += $(LOCAL_DIR)/qtimer.o \
@@ -537,6 +561,7 @@ DEFINES += DISPLAY_TYPE_MDSS=1
 			$(LOCAL_DIR)/mdp5.o \
 			$(LOCAL_DIR)/display.o \
 			$(LOCAL_DIR)/mipi_dsi.o \
+			$(LOCAL_DIR)/mipi_dsc.o \
 			$(LOCAL_DIR)/mipi_dsi_phy.o \
 			$(LOCAL_DIR)/mipi_dsi_autopll_thulium.o
 endif
@@ -578,8 +603,27 @@ DEFINES += DISPLAY_TYPE_MDSS=1
 			$(LOCAL_DIR)/mdp5.o \
 			$(LOCAL_DIR)/display.o \
 			$(LOCAL_DIR)/mipi_dsi.o \
+			$(LOCAL_DIR)/mipi_dsc.o \
 			$(LOCAL_DIR)/mipi_dsi_phy.o \
 			$(LOCAL_DIR)/mipi_dsi_autopll.o
+endif
+
+ifeq ($(PLATFORM),msmtitanium)
+	OBJS += $(LOCAL_DIR)/qgic.o \
+			$(LOCAL_DIR)/qtimer.o \
+			$(LOCAL_DIR)/qtimer_mmap.o \
+			$(LOCAL_DIR)/interrupts.o \
+			$(LOCAL_DIR)/clock.o \
+			$(LOCAL_DIR)/clock_pll.o \
+			$(LOCAL_DIR)/clock_lib2.o \
+			$(LOCAL_DIR)/uart_dm.o \
+			$(LOCAL_DIR)/board.o \
+			$(LOCAL_DIR)/spmi.o \
+			$(LOCAL_DIR)/bam.o \
+			$(LOCAL_DIR)/qpic_nand.o \
+			$(LOCAL_DIR)/scm.o \
+			$(LOCAL_DIR)/dev_tree.o \
+			$(LOCAL_DIR)/gpio.o
 endif
 
 ifeq ($(ENABLE_BOOT_CONFIG_SUPPORT), 1)
@@ -599,10 +643,11 @@ ifeq ($(ENABLE_PARTIAL_GOODS_SUPPORT), 1)
 	OBJS += $(LOCAL_DIR)/partial_goods.o
 endif
 
-ifeq ($(ENABLE_RPMB_SUPPORT), 1)
-include platform/msm_shared/rpmb/rules.mk
-endif
 
 ifeq ($(ENABLE_REBOOT_MODULE), 1)
 	OBJS += $(LOCAL_DIR)/reboot.o
+endif
+
+ifeq ($(ENABLE_RPMB_SUPPORT), 1)
+include platform/msm_shared/rpmb/rules.mk
 endif

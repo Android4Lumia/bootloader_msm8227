@@ -32,34 +32,61 @@
 #include <qgic.h>
 #include <qtimer.h>
 #include <platform/clock.h>
-#include <mmu.h>
 #include <arch/arm/mmu.h>
+#include <mmu.h>
 #include <smem.h>
 #include <board.h>
+#include <target/display.h>
 
 #define MSM_IOMAP_SIZE     ((MSM_IOMAP_END - MSM_IOMAP_BASE)/MB)
 #define MSM_SHARED_SIZE    2
 
-/* LK memory - cacheable, write through */
-#define LK_MEMORY         (MMU_MEMORY_TYPE_NORMAL_WRITE_THROUGH | \
+/* LK memory - cacheable, write back */
+#define LK_MEMORY         (MMU_MEMORY_TYPE_NORMAL_WRITE_BACK_ALLOCATE | \
                            MMU_MEMORY_AP_READ_WRITE)
 
 /* Peripherals - non-shared device */
 #define IOMAP_MEMORY      (MMU_MEMORY_TYPE_DEVICE_SHARED | \
+                           MMU_MEMORY_AP_READ_WRITE | MMU_MEMORY_XN | MMU_MEMORY_PXN)
+
+/* SCRATCH memory - cacheable, write back */
+#define SCRATCH_MEMORY       (MMU_MEMORY_TYPE_NORMAL_WRITE_BACK_ALLOCATE | \
                            MMU_MEMORY_AP_READ_WRITE | MMU_MEMORY_XN)
 
-/* SCRATCH memory - cacheable, write through */
-#define SCRATCH_MEMORY       (MMU_MEMORY_TYPE_NORMAL_WRITE_THROUGH | \
+/* COMMON memory - cacheable, write through */
+#define COMMON_MEMORY       (MMU_MEMORY_TYPE_NORMAL_WRITE_THROUGH | \
                            MMU_MEMORY_AP_READ_WRITE | MMU_MEMORY_XN)
 
-static mmu_section_t mmu_section_table[] = {
-/*       Physical addr,    Virtual addr,     Size (in MB),       Flags */
-	{    MEMBASE,           MEMBASE,          (MEMSIZE / MB),    LK_MEMORY},
-	{    MSM_IOMAP_BASE,    MSM_IOMAP_BASE,    MSM_IOMAP_SIZE,   IOMAP_MEMORY},
-	{    KERNEL_ADDR,       KERNEL_ADDR,       KERNEL_SIZE,      SCRATCH_MEMORY},
-	{    SCRATCH_ADDR,      SCRATCH_ADDR,      SCRATCH_SIZE,     SCRATCH_MEMORY},
-	{    MSM_SHARED_BASE,   MSM_SHARED_BASE,   MSM_SHARED_SIZE,  SCRATCH_MEMORY},
-	{    RPMB_SND_RCV_BUF,  RPMB_SND_RCV_BUF,  RPMB_SND_RCV_BUF_SZ,    IOMAP_MEMORY},
+/* downlaod mode memory - cacheable, write through */
+#define DLOAD_MEMORY       (MMU_MEMORY_TYPE_NORMAL_WRITE_THROUGH | \
+                           MMU_MEMORY_AP_READ_ONLY | MMU_MEMORY_XN)
+
+static uint64_t ddr_start;
+
+static mmu_section_t default_mmu_section_table[] =
+{
+/*       Physical addr,    Virtual addr,     Mapping type ,              Size (in MB),            Flags */
+    {    0x00000000,        0x00000000,       MMU_L2_NS_SECTION_MAPPING,  512,                IOMAP_MEMORY},
+    {    MEMBASE,           MEMBASE,          MMU_L2_NS_SECTION_MAPPING,  (MEMSIZE / MB),      LK_MEMORY},
+    {    SCRATCH_ADDR,      SCRATCH_ADDR,     MMU_L2_NS_SECTION_MAPPING,  SCRATCH_SIZE,        SCRATCH_MEMORY},
+    {    MSM_SHARED_BASE,   MSM_SHARED_BASE,  MMU_L2_NS_SECTION_MAPPING,  MSM_SHARED_SIZE,     COMMON_MEMORY},
+    {    RPMB_SND_RCV_BUF,  RPMB_SND_RCV_BUF, MMU_L2_NS_SECTION_MAPPING,  RPMB_SND_RCV_BUF_SZ, IOMAP_MEMORY},
+};
+
+static mmu_section_t default_mmu_section_table_3gb[] =
+{
+/*       Physical addr,    Virtual addr,     Mapping type ,              Size (in MB),            Flags */
+    {    0x40000000,        0x40000000,       MMU_L1_NS_SECTION_MAPPING,  1024       ,        COMMON_MEMORY},
+    {    0x80000000,        0x80000000,       MMU_L2_NS_SECTION_MAPPING,  88         ,        COMMON_MEMORY},
+};
+
+
+/* Map the ddr for download mode, this region belongs to non-hlos images and pil */
+static mmu_section_t dload_mmu_section_table[] =
+{
+/*    Physical addr,    Virtual addr,     Mapping type ,              Size (in MB),      Flags */
+    { 0x85800000,       0x85800000,       MMU_L2_NS_SECTION_MAPPING,  8,                 DLOAD_MEMORY},
+    { 0x86200000,       0x86200000,       MMU_L2_NS_SECTION_MAPPING,  174,               DLOAD_MEMORY},
 };
 
 void platform_early_init(void)
@@ -94,37 +121,72 @@ int platform_use_identity_mmu_mappings(void)
 /* Setup memory for this platform */
 void platform_init_mmu_mappings(void)
 {
-	uint32_t i;
-	uint32_t sections;
-	uint32_t table_size = ARRAY_SIZE(mmu_section_table);
+	int i;
+	int table_sz = ARRAY_SIZE(default_mmu_section_table);
+	mmu_section_t kernel_mmu_section_table;
+	uint64_t ddr_size = smem_get_ddr_size();
+	uint32_t kernel_size = 0;
 
-	/* Configure the MMU page entries for memory read from the
-	   mmu_section_table */
-	for (i = 0; i < table_size; i++)
+	if (ddr_size == MEM_4GB)
 	{
-		sections = mmu_section_table[i].num_of_sections;
+		ddr_start = 0x80000000;
+		/* As per the memory map when DDR is 4GB first 88 MB is hlos memory
+		 * use this for loading the kernel
+		 */
+		kernel_size = 88;
+	}
+	else if (ddr_size == MEM_3GB)
+	{
+		ddr_start = 0x20000000;
+		/* As per memory map wheh DDR is 3GB the first 512 MB is assigned to hlos
+		 * use this region for loading kernel
+		 */
+		kernel_size = 512;
+	}
+	else
+	{
+		dprintf(CRITICAL, "Unsupported memory map\n");
+		ASSERT(0);
+	}
 
-		while (sections--)
-		{
-			arm_mmu_map_section(mmu_section_table[i].paddress +
-								sections * MB,
-								mmu_section_table[i].vaddress +
-								sections * MB,
-								mmu_section_table[i].flags);
-		}
+	kernel_mmu_section_table.paddress = ddr_start;
+	kernel_mmu_section_table.vaddress = ddr_start;
+	kernel_mmu_section_table.type = MMU_L2_NS_SECTION_MAPPING;
+	kernel_mmu_section_table.size = kernel_size;
+	kernel_mmu_section_table.flags = SCRATCH_MEMORY;
+
+	/* Map kernel entry */
+	arm_mmu_map_entry(&kernel_mmu_section_table);
+
+	/* Map default memory needed for lk , scratch, rpmb & iomap */
+	for (i = 0 ; i < table_sz; i++)
+		arm_mmu_map_entry(&default_mmu_section_table[i]);
+
+	/* Map the rest of the DDR for 3GB needed for ramdump */
+	if (ddr_size == MEM_3GB)
+	{
+		for (i = 0 ; i < (int)ARRAY_SIZE(default_mmu_section_table_3gb); i++)
+			arm_mmu_map_entry(&default_mmu_section_table_3gb[i]);
+	}
+
+	if (scm_device_enter_dload())
+	{
+		/* TZ & Hyp memory can be mapped only while entering the download mode */
+		table_sz = ARRAY_SIZE(dload_mmu_section_table);
+
+		for (i = 0 ; i < table_sz; i++)
+			arm_mmu_map_entry(&dload_mmu_section_table[i]);
 	}
 }
 
 addr_t platform_get_virt_to_phys_mapping(addr_t virt_addr)
 {
-	/* Using 1-1 mapping on this platform. */
-	return virt_addr;
+	return virtual_to_physical_mapping(virt_addr);
 }
 
 addr_t platform_get_phys_to_virt_mapping(addr_t phys_addr)
 {
-	/* Using 1-1 mapping on this platform. */
-	return phys_addr;
+	return physical_to_virtual_mapping(phys_addr);
 }
 
 uint32_t platform_get_sclk_count(void)
@@ -154,4 +216,17 @@ int platform_is_msm8996()
 		return 1;
 	else
 		return 0;
+}
+
+uint64_t platform_get_ddr_start()
+{
+	return ddr_start;
+}
+
+bool platform_use_qmp_misc_settings()
+{
+	if (board_soc_version() < 0x30000)
+		return true;
+
+	return false;
 }

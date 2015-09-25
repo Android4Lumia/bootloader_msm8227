@@ -61,9 +61,18 @@
 #include <shutdown_detect.h>
 #endif
 
+#if PON_VIB_SUPPORT
+#include <vibrator.h>
+#endif
+
+#if PON_VIB_SUPPORT
+#define VIBRATE_TIME    250
+#endif
+
 #define PMIC_ARB_CHANNEL_NUM    0
 #define PMIC_ARB_OWNER_ID       0
 #define TLMM_VOL_UP_BTN_GPIO    85
+#define TLMM_VOL_UP_BTN_GPIO_8956 113
 
 #define FASTBOOT_MODE           0x77665500
 #define RECOVERY_MODE           0x77665502
@@ -166,14 +175,21 @@ void *target_mmc_device()
 int target_volume_up()
 {
 	uint8_t status = 0;
+	uint32_t vol_up_gpio;
 
-	gpio_tlmm_config(TLMM_VOL_UP_BTN_GPIO, 0, GPIO_INPUT, GPIO_PULL_UP, GPIO_2MA, GPIO_ENABLE);
+	if(platform_is_msm8956())
+		vol_up_gpio = TLMM_VOL_UP_BTN_GPIO_8956;
+
+	else
+		vol_up_gpio = TLMM_VOL_UP_BTN_GPIO;
+
+	gpio_tlmm_config(vol_up_gpio, 0, GPIO_INPUT, GPIO_PULL_UP, GPIO_2MA, GPIO_ENABLE);
 
 	/* Wait for the gpio config to take effect - debounce time */
 	thread_sleep(10);
 
 	/* Get status of GPIO */
-	status = gpio_status(TLMM_VOL_UP_BTN_GPIO);
+	status = gpio_status(vol_up_gpio);
 
 	/* Active low signal. */
 	return !status;
@@ -184,6 +200,15 @@ uint32_t target_volume_down()
 {
 	/* Volume down button tied in with PMIC RESIN. */
 	return pm8x41_resin_status();
+}
+
+uint32_t target_is_pwrkey_pon_reason()
+{
+	uint8_t pon_reason = pm8950_get_pon_reason();
+	if (pm8x41_get_is_cold_boot() && ((pon_reason == KPDPWR_N) || (pon_reason == (KPDPWR_N|PON1))))
+		return 1;
+	else
+		return 0;
 }
 
 static void target_keystatus()
@@ -234,6 +259,12 @@ void target_init(void)
 #if LONG_PRESS_POWER_ON
 	shutdown_detect();
 #endif
+
+#if PON_VIB_SUPPORT
+	/* turn on vibrator to indicate that phone is booting up to end user */
+	vib_timed_turn_on(VIBRATE_TIME);
+#endif
+
 	if (target_use_signed_kernel())
 		target_crypto_init_params();
 
@@ -455,6 +486,7 @@ int target_cont_splash_screen()
 		switch (board_hardware_id()) {
 		case HW_PLATFORM_MTP:
 		case HW_PLATFORM_SURF:
+		case HW_PLATFORM_RCM:
 		case HW_PLATFORM_QRD:
 			splash_screen = 1;
 			break;
@@ -470,6 +502,23 @@ int target_cont_splash_screen()
 void target_force_cont_splash_disable(uint8_t override)
 {
         splash_override = override;
+}
+
+uint8_t target_panel_auto_detect_enabled()
+{
+	uint8_t ret = 0;
+
+	switch(board_hardware_id())
+	{
+		case HW_PLATFORM_QRD:
+			ret = platform_is_msm8956() ? 1 : 0;
+			break;
+		case HW_PLATFORM_SURF:
+		case HW_PLATFORM_MTP:
+		default:
+			ret = 0;
+	}
+	return ret;
 }
 
 /* Do any target specific intialization needed before entering fastboot mode */

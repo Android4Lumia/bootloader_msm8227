@@ -62,6 +62,7 @@ static int is_mdtp_activated = -1;
 
 int check_aboot_addr_range_overlap(uint32_t start, uint32_t size);
 int scm_random(uint32_t * rbuf, uint32_t  r_len);
+void free_mdtp_image(void);
 
 /********************************************************************************/
 
@@ -422,7 +423,7 @@ static void display_recovery_ui(mdtp_cfg_t *mdtp_cfg)
 				// Valid PIN - deactivate and continue boot
 				dprintf(SPEW, "mdtp: display_recovery_ui: valid PIN, continue boot\n");
 				write_deactivated_DIP();
-				return;
+				goto out;
 			}
 			else
 			{
@@ -440,6 +441,9 @@ static void display_recovery_ui(mdtp_cfg_t *mdtp_cfg)
 		dprintf(CRITICAL, "mdtp: display_recovery_ui: Local deactivation disabled, unable to display recovery UI\n");
 		display_error_msg(); /* This will never return */
 	}
+
+	out:
+	free_mdtp_image();
 }
 
 /* Verify the boot or recovery partitions using boot_verifier. */
@@ -509,7 +513,7 @@ static int verify_ext_partition(mdtp_ext_partition_verification_t *ext_partition
 		/* 4) Verify the image using its signature. */
 		ret = boot_verify_image((unsigned char *)ext_partition->image_addr,
 								ext_partition->image_size,
-								ext_partition->partition == MDTP_PARTITION_BOOT ? "boot" : "recovery");
+								ext_partition->partition == MDTP_PARTITION_BOOT ? "/boot" : "/recovery");
 		break;
 
 	default:
@@ -566,38 +570,40 @@ static void verify_all_partitions(DIP_t *dip,
 	}
 	else
 	{
-		for(i=0; i<MAX_PARTITIONS; i++)
+		if (ext_partition->partition != MDTP_PARTITION_NONE)
 		{
-			if(dip->partition_cfg[i].lock_enabled && dip->partition_cfg[i].size)
+			for(i=0; i<MAX_PARTITIONS; i++)
 			{
-				total_num_blocks = ((dip->partition_cfg[i].size - 1) / MDTP_FWLOCK_BLOCK_SIZE);
-				if (validate_partition_params(dip->partition_cfg[i].size,
-					dip->partition_cfg[i].hash_mode,
-					dip->partition_cfg[i].verify_ratio))
+				if(dip->partition_cfg[i].lock_enabled && dip->partition_cfg[i].size)
 				{
-					dprintf(CRITICAL, "mdtp: verify_all_partitions: Wrong partition parameters\n");
-					verify_failure = TRUE;
-					break;
-				}
+					total_num_blocks = ((dip->partition_cfg[i].size - 1) / MDTP_FWLOCK_BLOCK_SIZE);
+					if (validate_partition_params(dip->partition_cfg[i].size,
+							dip->partition_cfg[i].hash_mode,
+							dip->partition_cfg[i].verify_ratio))
+					{
+						dprintf(CRITICAL, "mdtp: verify_all_partitions: Wrong partition parameters\n");
+						verify_failure = TRUE;
+						break;
+					}
 
-				verify_failure |= (verify_partition(dip->partition_cfg[i].name,
-							 dip->partition_cfg[i].size,
-							 dip->partition_cfg[i].hash_mode,
-							 (dip->partition_cfg[i].verify_ratio * total_num_blocks) / 100,
-							 dip->partition_cfg[i].hash_table,
-							 dip->partition_cfg[i].force_verify_block) != 0);
+					verify_failure |= (verify_partition(dip->partition_cfg[i].name,
+							dip->partition_cfg[i].size,
+							dip->partition_cfg[i].hash_mode,
+							(dip->partition_cfg[i].verify_ratio * total_num_blocks) / 100,
+							dip->partition_cfg[i].hash_table,
+							dip->partition_cfg[i].force_verify_block) != 0);
+				}
+			}
+
+			ext_partition_verify_failure = verify_ext_partition(ext_partition);
+
+			if (verify_failure || ext_partition_verify_failure)
+			{
+				dprintf(CRITICAL, "mdtp: verify_all_partitions: Failed partition verification\n");
+				return;
 			}
 		}
-
-		ext_partition_verify_failure = verify_ext_partition(ext_partition);
-
-		if (verify_failure || ext_partition_verify_failure)
-		{
-			dprintf(CRITICAL, "mdtp: verify_all_partitions: Failed partition verification\n");
-			return;
-		}
 		is_mdtp_activated = 1;
-
 	}
 
 	*verify_result = VERIFY_OK;
@@ -724,7 +730,7 @@ void mdtp_fwlock_verify_lock(mdtp_ext_partition_verification_t *ext_partition)
 
 	/* Disallow CIPHER_DIP SCM call from this point, unless we are in recovery */
 	/* The recovery image will disallow CIPHER_DIP SCM call by itself. */
-	if (ext_partition->partition != MDTP_PARTITION_RECOVERY)
+	if (ext_partition->partition == MDTP_PARTITION_BOOT)
 	{
 		mdtp_tzbsp_disallow_cipher_DIP();
 	}

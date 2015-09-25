@@ -61,6 +61,7 @@
 #define PMIC_ARB_CHANNEL_NUM    0
 #define PMIC_ARB_OWNER_ID       0
 #define TLMM_VOL_UP_BTN_GPIO    90
+#define TLMM_VOL_DOWN_BTN_GPIO  91
 
 #if PON_VIB_SUPPORT
 #define VIBRATE_TIME    250
@@ -74,6 +75,7 @@
 #define CE_READ_PIPE_LOCK_GRP   0
 #define CE_WRITE_PIPE_LOCK_GRP  0
 #define CE_ARRAY_SIZE           20
+#define SUB_TYPE_SKUT           0x0A
 
 extern void smem_ptable_init(void);
 extern void smem_add_modem_partitions(struct ptable *flash_ptable);
@@ -222,8 +224,24 @@ static int target_volume_up()
 /* Return 1 if vol_down pressed */
 uint32_t target_volume_down()
 {
-	/* Volume down button tied in with PMIC RESIN. */
-	return pm8x41_resin_status();
+	if ((board_hardware_id() == HW_PLATFORM_QRD) &&
+			(board_hardware_subtype() == SUB_TYPE_SKUT)) {
+		uint32_t status = 0;
+
+		gpio_tlmm_config(TLMM_VOL_DOWN_BTN_GPIO, 0, GPIO_INPUT, GPIO_PULL_UP, GPIO_2MA, GPIO_ENABLE);
+
+		/* Wait for the gpio config to take effect - debounce time */
+		thread_sleep(10);
+
+		/* Get status of GPIO */
+		status = gpio_status(TLMM_VOL_DOWN_BTN_GPIO);
+
+		/* Active low signal. */
+		return !status;
+	} else {
+		/* Volume down button tied in with PMIC RESIN. */
+		return pm8x41_resin_status();
+	}
 }
 
 static void target_keystatus()
@@ -370,21 +388,6 @@ void target_serialno(unsigned char *buf)
 unsigned board_machtype(void)
 {
 	return LINUX_MACHTYPE_UNKNOWN;
-}
-
-/* Configure PMIC and Drop PS_HOLD for shutdown */
-void shutdown_device()
-{
-	dprintf(CRITICAL, "Going down for shutdown.\n");
-
-	/* Configure PMIC for shutdown */
-	pm8x41_reset_configure(PON_PSHOLD_SHUTDOWN);
-
-	/* Drop PS_HOLD for MSM */
-	writel(0x00, MPM2_MPM_PS_HOLD);
-
-	mdelay(5000);
-
 }
 
 /* Detect the target type */
@@ -545,7 +548,7 @@ unsigned target_pause_for_battery_charge(void)
 	if (is_cold_boot &&
 			(!(pon_reason & HARD_RST)) &&
 			(!(pon_reason & KPDPWR_N)) &&
-			((pon_reason & USB_CHG) || (pon_reason & DC_CHG)))
+			((pon_reason & USB_CHG) || (pon_reason & DC_CHG) || (pon_reason & CBLPWR_N)))
 		return 1;
 	else
 		return 0;
@@ -684,4 +687,9 @@ void target_crypto_init_params()
 uint32_t target_get_hlos_subtype()
 {
 	return board_hlos_subtype();
+}
+
+void pmic_reset_configure(uint8_t reset_type)
+{
+	pm8x41_reset_configure(reset_type);
 }

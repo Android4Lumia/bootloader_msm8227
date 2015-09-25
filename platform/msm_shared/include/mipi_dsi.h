@@ -71,7 +71,8 @@
 #define TIMING_DB_MODE		     0x1E8
 
 #define DSI_HW_REV_103			0x10030000	/* 8994 */
-#define DSI_HW_REV_103_1		0x10030001	/* 8936/8939 */
+#define DSI_HW_REV_103_1		0x10030001	/* 8936/8939/8952 */
+#define DSI_HW_REV_104_2		0x10040002	/* 8956 */
 #define DSI_HW_REV_104			0x10040000	/* thulium */
 
 #define DTYPE_GEN_WRITE2 0x23	/* 4th Byte is 0x80 */
@@ -239,7 +240,8 @@ void mdss_dsi_phy_contention_detection(struct mipi_panel_info *mipi,
 				uint32_t phy_base);
 int mipi_dsi_phy_init(struct mipi_dsi_panel_config *pinfo);
 
-int mdss_dsi_video_mode_config(uint16_t disp_width,
+int mdss_dsi_video_mode_config(struct msm_panel_info *pinfo,
+	uint16_t disp_width,
 	uint16_t disp_height,
 	uint16_t img_width,
 	uint16_t img_height,
@@ -257,7 +259,8 @@ int mdss_dsi_video_mode_config(uint16_t disp_width,
 	uint8_t eof_bllp_pwr,
 	uint8_t interleav,
 	uint32_t ctl_base);
-int mdss_dsi_cmd_mode_config(uint16_t disp_width,
+int mdss_dsi_cmd_mode_config(struct msm_panel_info *pinfo,
+	uint16_t disp_width,
 	uint16_t disp_height,
 	uint16_t img_width,
 	uint16_t img_height,
@@ -276,11 +279,11 @@ int mdss_dsi_cmds_rx(struct mipi_panel_info *mipi, uint32_t **rp, int rp_len,
 	int rdbk_len);
 int32_t mdss_dsi_auto_pll_config(uint32_t pll_base, uint32_t ctl_base,
 	struct mdss_dsi_pll_config *pd);
-void mdss_dsi_auto_pll_20nm_config(uint32_t pll_base, uint32_t spll_base,
-		struct mdss_dsi_pll_config *pd);
+void mdss_dsi_auto_pll_20nm_config(struct msm_panel_info *pinfo);
 void mdss_dsi_pll_20nm_sw_reset_st_machine(uint32_t pll_base);
 uint32_t mdss_dsi_pll_20nm_lock_status(uint32_t pll_base);
 void mdss_dsi_uniphy_pll_lock_detect_setting(uint32_t pll_base);
 void mdss_dsi_uniphy_pll_sw_reset(uint32_t pll_base);
 int mdss_dsi_post_on(struct msm_fb_panel_data *panel);
+
 #endif

@@ -1,4 +1,4 @@
-/* Copyright (c) 2012, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012,2015, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -28,6 +28,7 @@
 
 #include <debug.h>
 #include <crypto5_wrapper.h>
+#include <platform/clock.h>
 
 /* This file is a wrapper to the crypto5_eng.c.
  * This is required so that we maintian the backward compatibility
@@ -45,9 +46,15 @@ void crypto_eng_cleanup(void)
 	crypto5_cleanup(&dev);
 }
 
+void crypto_unlock(void)
+{
+	crypto5_unlock_pipes(&dev);
+}
+
 void ce_clock_init(void)
 {
-	/* Clock init is done during crypto_init. */
+	/* Configure CE clocks. */
+	clock_config_ce(dev.instance);
 }
 
 void crypto_eng_reset(void)

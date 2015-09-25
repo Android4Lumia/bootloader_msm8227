@@ -1,4 +1,4 @@
-/* Copyright (c) 2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2014-2015, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -239,6 +239,12 @@ void smd_read(smd_channel_info_t *ch, uint32_t *len, int ch_type, uint32_t *resp
 	/* Read the indices from smem */
 	ch->port_info = smem_get_alloc_entry(SMEM_SMD_BASE_ID + ch->alloc_entry.cid,
 										 &size);
+	if(!ch->port_info)
+	{
+		dprintf(CRITICAL,"%s: unable to find index in smem\n", __func__);
+		ASSERT(0);
+	}
+
 	if(!ch->port_info->ch1.DTR_DSR)
 	{
 		dprintf(CRITICAL,"%s: DTR is off\n", __func__);
@@ -303,6 +309,11 @@ int smd_write(smd_channel_info_t *ch, void *data, uint32_t len, int ch_type)
 	/* Read the indices from smem */
 	ch->port_info = smem_get_alloc_entry(SMEM_SMD_BASE_ID + ch->alloc_entry.cid,
                                                         &size);
+	if(!ch->port_info)
+	{
+		dprintf(CRITICAL,"%s: unable to find index in smem\n", __func__);
+		ASSERT(0);
+	}
 
 	if(!is_channel_open(ch))
 	{
@@ -405,6 +416,15 @@ void smd_set_state(smd_channel_info_t *ch, uint32_t state, uint32_t flag)
 	smd_state_update(ch, flag);
 }
 
+static void flush_smd_channel_entries()
+{
+	int i = 0;
+	for(i = 0; i< SMEM_NUM_SMD_STREAM_CHANNELS; i++)
+	{
+		arch_invalidate_cache_range((addr_t)&smd_channel_alloc_entry[i],
+						sizeof(smd_channel_alloc_entry_t));
+	}
+}
 
 enum handler_return smd_irq_handler(void* data)
 {
@@ -412,6 +432,7 @@ enum handler_return smd_irq_handler(void* data)
 
 	if(ch->current_state == SMD_SS_CLOSED)
 	{
+		flush_smd_channel_entries();
 		free(smd_channel_alloc_entry);
 		event_signal(&smd_closed, false);
 		return INT_NO_RESCHEDULE;

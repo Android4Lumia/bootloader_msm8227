@@ -41,23 +41,32 @@
 #include "target/display.h"
 #include "panel_display.h"
 #include <mipi_dsi.h>
+#include <mdp5.h>
 
 /*---------------------------------------------------------------------------*/
 /* GCDB Panel Database                                                       */
 /*---------------------------------------------------------------------------*/
 #include "include/panel_nt35597_wqxga_dualdsi_video.h"
+#include "include/panel_nt35597_wqxga_dualdsi_cmd.h"
+#include "include/panel_nt35597_wqxga_dsc_video.h"
+#include "include/panel_nt35597_wqxga_dsc_cmd.h"
 #include "include/panel_sharp_wqxga_dualdsi_video.h"
 #include "include/panel_jdi_qhd_dualdsi_video.h"
 #include "include/panel_jdi_qhd_dualdsi_cmd.h"
+#include "include/panel_r69007_wqxga_cmd.h"
 
 /*---------------------------------------------------------------------------*/
 /* static panel selection variable                                           */
 /*---------------------------------------------------------------------------*/
 enum {
-	NT35597_WQXGA_DUALDSI_VIDEO_PANEL,
 	SHARP_WQXGA_DUALDSI_VIDEO_PANEL,
+	NT35597_WQXGA_DUALDSI_VIDEO_PANEL,
+	NT35597_WQXGA_DUALDSI_CMD_PANEL,
+	NT35597_WQXGA_DSC_VIDEO_PANEL,
+	NT35597_WQXGA_DSC_CMD_PANEL,
 	JDI_QHD_DUALDSI_VIDEO_PANEL,
 	JDI_QHD_DUALDSI_CMD_PANEL,
+	R69007_WQXGA_CMD_PANEL,
 	UNKNOWN_PANEL
 };
 
@@ -66,10 +75,14 @@ enum {
  * Any panel in this list can be selected using fastboot oem command.
  */
 static struct panel_list supp_panels[] = {
-	{"nt35597_wqxga_dualdsi_video", NT35597_WQXGA_DUALDSI_VIDEO_PANEL},
 	{"sharp_wqxga_dualdsi_video", SHARP_WQXGA_DUALDSI_VIDEO_PANEL},
+	{"nt35597_wqxga_dualdsi_video", NT35597_WQXGA_DUALDSI_VIDEO_PANEL},
+	{"nt35597_wqxga_dualdsi_cmd", NT35597_WQXGA_DUALDSI_CMD_PANEL},
+	{"nt35597_wqxga_dsc_video", NT35597_WQXGA_DSC_VIDEO_PANEL},
+	{"nt35597_wqxga_dsc_cmd", NT35597_WQXGA_DSC_CMD_PANEL},
 	{"jdi_qhd_dualdsi_video", JDI_QHD_DUALDSI_VIDEO_PANEL},
 	{"jdi_qhd_dualdsi_cmd", JDI_QHD_DUALDSI_CMD_PANEL},
+	{"r69007_wqxga_cmd", R69007_WQXGA_CMD_PANEL},
 };
 
 static uint32_t panel_id;
@@ -139,9 +152,6 @@ static bool init_panel_data(struct panel_struct *panelstruct,
 		pan_type = PANEL_TYPE_DSI;
 		pinfo->lcd_reg_en = 0;
 		panelstruct->paneldata    = &nt35597_wqxga_dualdsi_video_panel_data;
-		panelstruct->paneldata->panel_operating_mode = 11;
-		panelstruct->paneldata->panel_with_enable_gpio = 0;
-
 		panelstruct->panelres     = &nt35597_wqxga_dualdsi_video_panel_res;
 		panelstruct->color        = &nt35597_wqxga_dualdsi_video_color;
 		panelstruct->videopanel   = &nt35597_wqxga_dualdsi_video_video_panel;
@@ -168,6 +178,115 @@ static bool init_panel_data(struct panel_struct *panelstruct,
 			nt35597_wqxga_dualdsi_thulium_video_timings,
 			MAX_TIMING_CONFIG * sizeof(uint32_t));
 		pinfo->mipi.tx_eot_append = true;
+		break;
+	case NT35597_WQXGA_DUALDSI_CMD_PANEL:
+		pan_type = PANEL_TYPE_DSI;
+		pinfo->lcd_reg_en = 0;
+		panelstruct->paneldata    = &nt35597_wqxga_dualdsi_cmd_panel_data;
+		panelstruct->panelres     = &nt35597_wqxga_dualdsi_cmd_panel_res;
+		panelstruct->color        = &nt35597_wqxga_dualdsi_cmd_color;
+		panelstruct->videopanel   = &nt35597_wqxga_dualdsi_cmd_video_panel;
+		panelstruct->commandpanel = &nt35597_wqxga_dualdsi_cmd_command_panel;
+		panelstruct->state        = &nt35597_wqxga_dualdsi_cmd_state;
+		panelstruct->laneconfig   = &nt35597_wqxga_dualdsi_cmd_lane_config;
+		panelstruct->paneltiminginfo
+			= &nt35597_wqxga_dualdsi_cmd_timing_info;
+		panelstruct->panelresetseq
+					 = &nt35597_wqxga_dualdsi_cmd_reset_seq;
+		panelstruct->backlightinfo = &nt35597_wqxga_dualdsi_cmd_backlight;
+
+		pinfo->labibb = &nt35597_wqxga_dualdsi_cmd_labibb;
+
+		pinfo->mipi.panel_on_cmds
+			= nt35597_wqxga_dualdsi_cmd_on_command;
+		pinfo->mipi.num_of_panel_on_cmds
+			= NT35597_WQXGA_DUALDSI_CMD_ON_COMMAND;
+		pinfo->mipi.panel_off_cmds
+			= nt35597_wqxga_dualdsi_cmd_off_command;
+		pinfo->mipi.num_of_panel_off_cmds
+			= NT35597_WQXGA_DUALDSI_CMD_OFF_COMMAND;
+		memcpy(phy_db->timing,
+			nt35597_wqxga_dualdsi_thulium_cmd_timings,
+			MAX_TIMING_CONFIG * sizeof(uint32_t));
+		pinfo->mipi.tx_eot_append = true;
+		break;
+	case NT35597_WQXGA_DSC_VIDEO_PANEL:
+		pan_type = PANEL_TYPE_DSI;
+		pinfo->lcd_reg_en = 0;
+		panelstruct->paneldata    = &nt35597_wqxga_dsc_video_panel_data;
+		panelstruct->panelres     = &nt35597_wqxga_dsc_video_panel_res;
+		panelstruct->color        = &nt35597_wqxga_dsc_video_color;
+		panelstruct->videopanel   = &nt35597_wqxga_dsc_video_video_panel;
+		panelstruct->commandpanel = &nt35597_wqxga_dsc_video_command_panel;
+		panelstruct->state        = &nt35597_wqxga_dsc_video_state;
+		panelstruct->laneconfig   = &nt35597_wqxga_dsc_video_lane_config;
+		panelstruct->paneltiminginfo
+			= &nt35597_wqxga_dsc_video_timing_info;
+		panelstruct->panelresetseq
+					 = &nt35597_wqxga_dsc_video_reset_seq;
+		panelstruct->backlightinfo = &nt35597_wqxga_dsc_video_backlight;
+
+		pinfo->labibb = &nt35597_wqxga_dsc_video_labibb;
+
+		pinfo->mipi.panel_on_cmds
+			= nt35597_wqxga_dsc_video_on_command;
+		pinfo->mipi.num_of_panel_on_cmds
+			= NT35597_WQXGA_DSC_VIDEO_ON_COMMAND;
+		pinfo->mipi.panel_off_cmds
+			= nt35597_wqxga_dsc_video_off_command;
+		pinfo->mipi.num_of_panel_off_cmds
+			= NT35597_WQXGA_DSC_VIDEO_OFF_COMMAND;
+		memcpy(phy_db->timing,
+			nt35597_wqxga_dsc_thulium_video_timings,
+			MAX_TIMING_CONFIG * sizeof(uint32_t));
+		pinfo->mipi.tx_eot_append = true;
+
+		pinfo->compression_mode = COMPRESSION_DSC;
+		memcpy(&panelstruct->dsc_paras, &nt35597_wqxga_dsc_video_paras,
+				sizeof(struct dsc_parameters));
+		pinfo->dsc.parameter_calc =  mdss_dsc_parameters_calc;
+		pinfo->dsc.dsc2buf = mdss_dsc_to_buf;
+		pinfo->dsc.dsi_dsc_config = mdss_dsc_dsi_config;
+		pinfo->dsc.mdp_dsc_config = mdss_dsc_mdp_config;
+		break;
+	case NT35597_WQXGA_DSC_CMD_PANEL:
+		pan_type = PANEL_TYPE_DSI;
+		pinfo->lcd_reg_en = 0;
+		panelstruct->paneldata    = &nt35597_wqxga_dsc_cmd_panel_data;
+		panelstruct->panelres     = &nt35597_wqxga_dsc_cmd_panel_res;
+		panelstruct->color        = &nt35597_wqxga_dsc_cmd_color;
+		panelstruct->videopanel   = &nt35597_wqxga_dsc_cmd_video_panel;
+		panelstruct->commandpanel = &nt35597_wqxga_dsc_cmd_command_panel;
+		panelstruct->state        = &nt35597_wqxga_dsc_cmd_state;
+		panelstruct->laneconfig   = &nt35597_wqxga_dsc_cmd_lane_config;
+		panelstruct->paneltiminginfo
+			= &nt35597_wqxga_dsc_cmd_timing_info;
+		panelstruct->panelresetseq
+					 = &nt35597_wqxga_dsc_cmd_reset_seq;
+		panelstruct->backlightinfo = &nt35597_wqxga_dsc_cmd_backlight;
+
+		pinfo->labibb = &nt35597_wqxga_dsc_cmd_labibb;
+
+		pinfo->mipi.panel_on_cmds
+			= nt35597_wqxga_dsc_cmd_on_command;
+		pinfo->mipi.num_of_panel_on_cmds
+			= NT35597_WQXGA_DSC_CMD_ON_COMMAND;
+		pinfo->mipi.panel_off_cmds
+			= nt35597_wqxga_dsc_cmd_off_command;
+		pinfo->mipi.num_of_panel_off_cmds
+			= NT35597_WQXGA_DSC_CMD_OFF_COMMAND;
+		memcpy(phy_db->timing,
+			nt35597_wqxga_dsc_thulium_cmd_timings,
+			MAX_TIMING_CONFIG * sizeof(uint32_t));
+		pinfo->mipi.tx_eot_append = true;
+
+		pinfo->compression_mode = COMPRESSION_DSC;
+		memcpy(&panelstruct->dsc_paras, &nt35597_wqxga_dsc_cmd_paras,
+				sizeof(struct dsc_parameters));
+		pinfo->dsc.parameter_calc =  mdss_dsc_parameters_calc;
+		pinfo->dsc.dsc2buf = mdss_dsc_to_buf;
+		pinfo->dsc.dsi_dsc_config = mdss_dsc_dsi_config;
+		pinfo->dsc.mdp_dsc_config = mdss_dsc_mdp_config;
 		break;
 	case JDI_QHD_DUALDSI_VIDEO_PANEL:
 		pan_type = PANEL_TYPE_DSI;
@@ -225,6 +344,36 @@ static bool init_panel_data(struct panel_struct *panelstruct,
 			jdi_qhd_dualdsi_thulium_video_timings,
 			MAX_TIMING_CONFIG * sizeof(uint32_t));
 		break;
+	case R69007_WQXGA_CMD_PANEL:
+		pan_type = PANEL_TYPE_DSI;
+		pinfo->lcd_reg_en = 0;
+		panelstruct->paneldata    = &r69007_wqxga_cmd_panel_data;
+		panelstruct->panelres     = &r69007_wqxga_cmd_panel_res;
+		panelstruct->color        = &r69007_wqxga_cmd_color;
+		panelstruct->videopanel   = &r69007_wqxga_cmd_video_panel;
+		panelstruct->commandpanel = &r69007_wqxga_cmd_command_panel;
+		panelstruct->state        = &r69007_wqxga_cmd_state;
+		panelstruct->laneconfig   = &r69007_wqxga_cmd_lane_config;
+		panelstruct->paneltiminginfo
+			= &r69007_wqxga_cmd_timing_info;
+		panelstruct->panelresetseq
+					 = &r69007_wqxga_cmd_reset_seq;
+		panelstruct->backlightinfo = &r69007_wqxga_cmd_backlight;
+
+		pinfo->labibb = &r69007_wqxga_cmd_labibb;
+
+		pinfo->mipi.panel_on_cmds
+			= r69007_wqxga_cmd_on_command;
+		pinfo->mipi.num_of_panel_on_cmds
+			= R69007_WQXGA_CMD_ON_COMMAND;
+		pinfo->mipi.panel_off_cmds
+			= r69007_wqxga_cmd_off_command;
+		pinfo->mipi.num_of_panel_off_cmds
+			= R69007_WQXGA_CMD_OFF_COMMAND;
+		memcpy(phy_db->timing,
+			r69007_wqxga_thulium_cmd_timings,
+			MAX_TIMING_CONFIG * sizeof(uint32_t));
+		break;
 	default:
 	case UNKNOWN_PANEL:
 		pan_type = PANEL_TYPE_UNKNOWN;
@@ -248,13 +397,13 @@ int oem_panel_select(const char *panel_name, struct panel_struct *panelstruct,
 
 		if (panel_override_id < 0) {
 			dprintf(CRITICAL, "Not able to search the panel:%s\n",
-					 panel_name + strspn(panel_name, " "));
+					 panel_name);
 		} else if (panel_override_id < UNKNOWN_PANEL) {
 			/* panel override using fastboot oem command */
 			panel_id = panel_override_id;
 
 			dprintf(INFO, "OEM panel override:%s\n",
-					panel_name + strspn(panel_name, " "));
+					panel_name);
 			goto panel_init;
 		}
 	}
@@ -264,6 +413,9 @@ int oem_panel_select(const char *panel_name, struct panel_struct *panelstruct,
 	case HW_PLATFORM_FLUID:
 	case HW_PLATFORM_SURF:
 		panel_id = SHARP_WQXGA_DUALDSI_VIDEO_PANEL;
+		break;
+	case HW_PLATFORM_QRD:
+		panel_id = R69007_WQXGA_CMD_PANEL;
 		break;
 	default:
 		dprintf(CRITICAL, "Display not enabled for %d HW type\n"

@@ -39,6 +39,7 @@
 #include <board.h>
 #include <boot_stats.h>
 #include <platform.h>
+#include <target/display.h>
 
 #define MSM_IOMAP_SIZE ((MSM_IOMAP_END - MSM_IOMAP_BASE)/MB)
 #define APPS_SS_SIZE   ((APPS_SS_END - APPS_SS_BASE)/MB)
@@ -65,6 +66,7 @@ static mmu_section_t mmu_section_table[] = {
 	{    APPS_SS_BASE,          APPS_SS_BASE,            APPS_SS_SIZE,      IOMAP_MEMORY},
 	{    MSM_SHARED_IMEM_BASE,  MSM_SHARED_IMEM_BASE,    1,                COMMON_MEMORY},
 	{    SCRATCH_ADDR,          SCRATCH_ADDR,            512,              SCRATCH_MEMORY},
+	{    MIPI_FB_ADDR,          MIPI_FB_ADDR,            42,              COMMON_MEMORY},
 };
 
 void platform_early_init(void)
@@ -115,7 +117,7 @@ void platform_init_mmu_mappings(void)
 	sections = 90;
 	while(sections--)
 	{
-		arm_mmu_map_section(ddr_start + sections * MB, ddr_start + sections* MB, COMMON_MEMORY);
+		arm_mmu_map_section(ddr_start + sections * MB, ddr_start + sections* MB, SCRATCH_MEMORY);
 	}
 
 

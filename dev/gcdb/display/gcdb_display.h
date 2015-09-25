@@ -43,6 +43,8 @@
 #define BIST_SIZE 6
 #define LANE_SIZE 45
 
+#define DSI_CFG_SIZE 15
+
 /*---------------------------------------------------------------------------*/
 /* API                                                                       */
 /*---------------------------------------------------------------------------*/
@@ -56,22 +58,56 @@ int target_display_dsi2hdmi_config(struct msm_panel_info *pinfo);
 int target_dsi_phy_config(struct mdss_dsi_phy_ctrl *phy_db);
 
 int gcdb_display_init(const char *panel_name, uint32_t rev, void *base);
-int gcdb_display_cmdline_arg(char *panel_name, char *pbuf, uint16_t buf_size);
+int gcdb_display_cmdline_arg(char *pbuf, uint16_t buf_size);
 void gcdb_display_shutdown();
 int oem_panel_select(const char *panel_name, struct panel_struct *panelstruct,
 	struct msm_panel_info *pinfo, struct mdss_dsi_phy_ctrl *phy_db);
+void set_panel_cmd_string(const char *panel_name);
+struct oem_panel_data mdss_dsi_get_oem_data(void);
+struct oem_panel_data *mdss_dsi_get_oem_data_ptr(void);
+struct panel_struct mdss_dsi_get_panel_data(void);
 
-static inline void set_panel_cmd_string(const char *panel_name,
-	char *cont_splash)
+struct oem_panel_data  {
+	char panel[MAX_PANEL_ID_LEN];
+	char sec_panel[MAX_PANEL_ID_LEN];
+	bool cont_splash;
+	bool skip;
+	bool swap_dsi_ctrl;
+	uint32_t sim_mode;
+	char dsi_config[DSI_CFG_SIZE];
+	uint32_t dsi_pll_src;
+};
+
+enum {
+    DSI_PLL_DEFAULT,
+    DSI_PLL0,
+    DSI_PLL1,
+};
+
+static inline bool is_dsi_config_split(void)
 {
-	char *ch = NULL;
-	ch = strchr((char *) panel_name, ':');
-	if (ch) {
-		*cont_splash = *(ch + 1);
-		*ch = '\0';
-	} else {
-		*cont_splash = '\0';
-	}
+	struct panel_struct panelstruct = mdss_dsi_get_panel_data();
+
+	return panelstruct.paneldata->panel_node_id &&
+		panelstruct.paneldata->slave_panel_node_id &&
+		(panelstruct.paneldata->panel_operating_mode & (DUAL_DSI_FLAG |
+		SPLIT_DISPLAY_FLAG | DST_SPLIT_FLAG));
+}
+
+static inline bool is_dsi_config_dual(void)
+{
+	struct oem_panel_data *oem_data = mdss_dsi_get_oem_data_ptr();
+
+	return !is_dsi_config_split() && oem_data->sec_panel &&
+		strcmp(oem_data->sec_panel, "");
+}
+
+static inline bool is_dsi_config_single()
+{
+	struct panel_struct panelstruct = mdss_dsi_get_panel_data();
+
+	return panelstruct.paneldata->panel_node_id && !is_dsi_config_split()
+		&& !is_dsi_config_dual();
 }
 
 #endif /*_GCDB_DISPLAY_H_ */

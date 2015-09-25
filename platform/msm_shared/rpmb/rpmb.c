@@ -50,7 +50,30 @@ int rpmb_init()
 	{
 		struct mmc_device *mmc_dev = (struct mmc_device *) dev;
 		info.size = mmc_dev->card.rpmb_size / RPMB_MIN_BLK_SZ;
-		info.rel_wr_count = mmc_dev->card.rel_wr_count;
+		if (mmc_dev->card.ext_csd[MMC_EXT_CSD_REV] < 8)
+		{
+			dprintf(SPEW, "EMMC Version < 5.1\n");
+			info.rel_wr_count = mmc_dev->card.rel_wr_count;
+		}
+		else
+		{
+			if (mmc_dev->card.ext_csd[MMC_EXT_CSD_EN_RPMB_REL_WR] == 0)
+			{
+				dprintf(SPEW, "EMMC Version >= 5.1 EN_RPMB_REL_WR = 0\n");
+				// according to emmc version 5.1 and above if EN_RPMB_REL_WR in extended
+				// csd is not set the maximum number of frames that can be reliably written
+				// to emmc would be 2
+				info.rel_wr_count = 2;
+			}
+			else
+			{
+				dprintf(SPEW, "EMMC Version >= 5.1 EN_RPMB_REL_WR = 1\n");
+				// according to emmc version 5.1 and above if EN_RPMB_REL_WR in extended
+				// csd is set the maximum number of frames that can be reliably written
+				// to emmc would be 32
+				info.rel_wr_count = 32;
+			}
+		}
 		info.dev_type  = EMMC_RPMB;
 	}
 	else
@@ -105,12 +128,12 @@ int rpmb_read(uint32_t *req, uint32_t req_len, uint32_t *resp, uint32_t *resp_le
 		return rpmb_read_ufs(dev, req, req_len, resp, resp_len);
 }
 
-int rpmb_write(uint32_t *req, uint32_t req_len, uint32_t *resp, uint32_t *resp_len)
+int rpmb_write(uint32_t *req, uint32_t req_len, uint32_t rel_wr_count, uint32_t *resp, uint32_t *resp_len)
 {
 	if (platform_boot_dev_isemmc())
-		return rpmb_write_emmc(dev, req, req_len, resp, resp_len);
+		return rpmb_write_emmc(dev, req, req_len, rel_wr_count, resp, resp_len);
 	else
-		return rpmb_write_ufs(dev, req, req_len, resp, resp_len);
+		return rpmb_write_ufs(dev, req, req_len, rel_wr_count, resp, resp_len);
 }
 
 /* This API calls into TZ app to read device_info */
@@ -137,15 +160,15 @@ int read_device_info_rpmb(void *info, uint32_t sz)
 	read_req.data   = (uint32_t) info;
 	read_req.len    = sz;
 
-	read_rsp.cmd_id = CLIENT_CMD_READ_LK_DEVICE_STATE;
-
 	/* Read the device info */
+	arch_clean_invalidate_cache_range((addr_t) info, sz);
 	ret = qseecom_send_command(app_handle, (void*) &read_req, sizeof(read_req), (void*) &read_rsp, sizeof(read_rsp));
+	arch_invalidate_cache_range((addr_t) info, sz);
 
 	if (ret < 0 || read_rsp.status < 0)
 	{
 		dprintf(CRITICAL, "Reading device info failed: Error: %d\n", read_rsp.status);
-		return read_rsp.status;
+		return -1;
 	}
 
 	return 0;
@@ -162,15 +185,15 @@ int write_device_info_rpmb(void *info, uint32_t sz)
 	write_req.data   = (uint32_t) info;
 	write_req.len    = sz;
 
-	write_rsp.cmd_id = CLIENT_CMD_WRITE_LK_DEVICE_STATE;
-
 	/* Write the device info */
+	arch_clean_invalidate_cache_range((addr_t) info, sz);
 	ret = qseecom_send_command(app_handle, (void *)&write_req, sizeof(write_req), (void *)&write_rsp, sizeof(write_rsp));
+	arch_invalidate_cache_range((addr_t) info, sz);
 
 	if (ret < 0 || write_rsp.status < 0)
 	{
 		dprintf(CRITICAL, "Writing device info failed: Error: %d\n", write_rsp.status);
-		return ret;
+		return -1;
 	}
 
 	return 0;

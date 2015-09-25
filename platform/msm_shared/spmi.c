@@ -46,6 +46,7 @@ static spmi_callback callback;
 static uint32_t pmic_arb_ver;
 static uint8_t *chnl_tbl;
 static uint32_t max_peripherals;
+static bool spmi_init_done;
 
 static void spmi_lookup_chnl_number()
 {
@@ -90,6 +91,8 @@ void spmi_init(uint32_t chnl_num, uint32_t owner_id)
 	{
 		spmi_lookup_chnl_number();
 	}
+
+	spmi_init_done = true;
 }
 
 static void write_wdata_from_array(uint8_t *array,
@@ -389,7 +392,59 @@ void spmi_enable_periph_interrupts(uint8_t periph_id)
 
 }
 
+/* SPMI helper functions */
+uint8_t pmic_spmi_reg_read(uint32_t addr)
+{
+	uint8_t val = 0;
+	struct pmic_arb_cmd cmd;
+	struct pmic_arb_param param;
+
+	cmd.address  = SPMI_PERIPH_ID(addr);
+	cmd.offset   = SPMI_REG_OFFSET(addr);
+	cmd.slave_id = SPMI_SLAVE_ID(addr);
+	cmd.priority = 0;
+
+	param.buffer = &val;
+	param.size   = 1;
+
+	pmic_arb_read_cmd(&cmd, &param);
+
+	return val;
+}
+
+void pmic_spmi_reg_write(uint32_t addr, uint8_t val)
+{
+	struct pmic_arb_cmd cmd;
+	struct pmic_arb_param param;
+
+	cmd.address  = SPMI_PERIPH_ID(addr);
+	cmd.offset   = SPMI_REG_OFFSET(addr);
+	cmd.slave_id = SPMI_SLAVE_ID(addr);
+	cmd.priority = 0;
+
+	param.buffer = &val;
+	param.size   = 1;
+
+	pmic_arb_write_cmd(&cmd, &param);
+}
+
+void pmic_spmi_reg_mask_write(uint32_t addr, uint8_t mask, uint8_t val)
+{
+	uint8_t reg;
+
+	reg = pmic_spmi_reg_read(addr);
+
+	reg &= ~mask;
+	reg |= val & mask;
+	pmic_spmi_reg_write(addr, reg);
+}
+
 void spmi_uninit()
 {
 	mask_interrupt(EE0_KRAIT_HLOS_SPMI_PERIPH_IRQ);
+}
+
+bool spmi_initialized()
+{
+	return spmi_init_done;
 }

@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2015, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -286,9 +286,6 @@ void crypto5_init(struct crypto_dev *dev)
 	uint32_t config = CRYPTO_RESET_CONFIG
 			| (dev->bam.pipe[CRYPTO_READ_PIPE_INDEX].pipe_num >> 1) << PIPE_SET_SELECT_SHIFT;
 
-	/* Configure CE clocks. */
-	clock_config_ce(dev->instance);
-
 	/* Setup BAM */
 	if (crypto_bam_init(dev) != CRYPTO_ERR_NONE)
 	{
@@ -530,7 +527,14 @@ uint32_t crypto5_send_data(struct crypto_dev *dev,
 
 CRYPTO_SEND_DATA_ERR:
 
+	crypto5_unlock_pipes(dev);
+
 	return ret_status;
+}
+
+void crypto5_unlock_pipes(struct crypto_dev *dev)
+{
+	CLEAR_STATUS(dev);
 }
 
 void crypto5_cleanup(struct crypto_dev *dev)

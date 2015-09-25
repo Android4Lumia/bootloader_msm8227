@@ -102,6 +102,7 @@ struct mmc_command {
 	uint64_t cmd_timeout;   /* Command timeout in us */
 	bool write_flag;        /* Write flag, for reliable write cases */
 	struct mmc_data data;   /* Data pointer */
+	uint8_t rel_write;      /* Reliable write enable flag */
 };
 
 /*
@@ -290,7 +291,7 @@ enum {
 #define SDHCI_READ_MODE                           BIT(4)
 #define SDHCI_SWITCH_CMD                          6
 #define SDHCI_CMD_TIMEOUT                         0xF
-#define SDHCI_MAX_CMD_RETRY                       5000000
+#define SDHCI_MAX_CMD_RETRY                       9000000
 #define SDHCI_MAX_TRANS_RETRY                     10000000
 
 #define SDHCI_PREP_CMD(c, f)                      ((((c) & 0xff) << 8) | ((f) & 0xff))

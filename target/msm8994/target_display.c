@@ -421,8 +421,7 @@ int target_panel_clock(uint8_t enable, struct msm_panel_info *pinfo)
 		goto clks_disable;
 	}
 
-	mdss_dsi_auto_pll_20nm_config(pinfo->mipi.pll_base,
-		pinfo->mipi.spll_base, pll_data);
+	mdss_dsi_auto_pll_20nm_config(pinfo);
 
 	if (!dsi_pll_20nm_enable_seq(pinfo->mipi.pll_base)) {
 		ret = ERROR;
@@ -589,24 +588,25 @@ int target_dsi_phy_config(struct mdss_dsi_phy_ctrl *phy_db)
 int target_display_get_base_offset(uint32_t base)
 {
 	if(platform_is_msm8992()) {
-		if (base == MIPI_DSI0_BASE)
+		if ((base == MIPI_DSI0_BASE) || (base == DSI0_PHY_BASE) ||
+		    (base == DSI0_PLL_BASE) || (base == DSI0_REGULATOR_BASE))
 			return DSI0_BASE_ADJUST;
-		else if (base == MIPI_DSI1_BASE)
+		else if ((base == MIPI_DSI1_BASE) || (base == DSI1_PHY_BASE) ||
+			(base == DSI1_PLL_BASE))
 			return DSI1_BASE_ADJUST;
 	}
 
 	return 0;
 }
 
-bool target_display_panel_node(char *panel_name, char *pbuf, uint16_t buf_size)
+bool target_display_panel_node(char *pbuf, uint16_t buf_size)
 {
 	int prefix_string_len = strlen(DISPLAY_CMDLINE_PREFIX);
 	bool ret = true;
 	char vic_buf[HDMI_VIC_LEN] = "0";
+	struct oem_panel_data oem = mdss_dsi_get_oem_data();
 
-	panel_name += strspn(panel_name, " ");
-
-	if (!strcmp(panel_name, HDMI_PANEL_NAME)) {
+	if (!strcmp(oem.panel, HDMI_PANEL_NAME)) {
 		if (buf_size < (prefix_string_len + LK_OVERRIDE_PANEL_LEN +
 				strlen(HDMI_CONTROLLER_STRING))) {
 			dprintf(CRITICAL, "command line argument is greater than buffer size\n");
@@ -622,7 +622,7 @@ bool target_display_panel_node(char *panel_name, char *pbuf, uint16_t buf_size)
 		mdss_hdmi_get_vic(vic_buf);
 		strlcat(pbuf, vic_buf, buf_size);
 	} else {
-		ret = gcdb_display_cmdline_arg(panel_name, pbuf, buf_size);
+		ret = gcdb_display_cmdline_arg(pbuf, buf_size);
 	}
 
 	return ret;
@@ -630,30 +630,32 @@ bool target_display_panel_node(char *panel_name, char *pbuf, uint16_t buf_size)
 
 void target_display_init(const char *panel_name)
 {
-	char cont_splash = '\0';
+	struct oem_panel_data oem;
 
-	set_panel_cmd_string(panel_name, &cont_splash);
-	panel_name += strspn(panel_name, " ");
-	if (!strcmp(panel_name, NO_PANEL_CONFIG)
-		|| !strcmp(panel_name, SIM_VIDEO_PANEL)
-		|| !strcmp(panel_name, SIM_DUALDSI_VIDEO_PANEL)
-		|| !strcmp(panel_name, SIM_CMD_PANEL)
-		|| !strcmp(panel_name, SIM_DUALDSI_CMD_PANEL)) {
+	set_panel_cmd_string(panel_name);
+	oem = mdss_dsi_get_oem_data();
+
+	if (!strcmp(oem.panel, NO_PANEL_CONFIG)
+		|| !strcmp(oem.panel, SIM_VIDEO_PANEL)
+		|| !strcmp(oem.panel, SIM_DUALDSI_VIDEO_PANEL)
+		|| !strcmp(oem.panel, SIM_CMD_PANEL)
+		|| !strcmp(oem.panel, SIM_DUALDSI_CMD_PANEL)
+		|| oem.skip) {
 		dprintf(INFO, "Selected panel: %s\nSkip panel configuration\n",
-			panel_name);
+			oem.panel);
 		return;
-	} else if (!strcmp(panel_name, HDMI_PANEL_NAME)) {
+	} else if (!strcmp(oem.panel, HDMI_PANEL_NAME)) {
 		dprintf(INFO, "%s: HDMI is primary\n", __func__);
 		mdss_hdmi_display_init(MDP_REV_50, (void *) MIPI_FB_ADDR);
 		return;
 	}
 
-	if (gcdb_display_init(panel_name, MDP_REV_50, (void *)MIPI_FB_ADDR)) {
+	if (gcdb_display_init(oem.panel, MDP_REV_50, (void *)MIPI_FB_ADDR)) {
 		target_force_cont_splash_disable(true);
 		msm_display_off();
 	}
 
-	if (cont_splash == '0') {
+	if (!oem.cont_splash) {
 		dprintf(INFO, "Forcing continuous splash disable\n");
 		target_force_cont_splash_disable(true);
 	}
