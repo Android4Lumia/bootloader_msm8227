@@ -111,7 +111,7 @@ void api_platform_init(void) {
 
 void target_sdc_init(void);
 
-static int api_mmc_init(lkapi_biodev_t* dev) {
+int api_mmc_init(lkapi_biodev_t* dev) {
 	static int initialized = 0;
 
 	if(initialized)
@@ -125,63 +125,6 @@ out:
 	if(dev)
 		dev->num_blocks = mmc_get_device_capacity()/dev->block_size;
 	return 0;
-}
-
-static int api_mmc_read(lkapi_biodev_t* dev, unsigned long long lba, unsigned long buffersize, void* buffer) {
-	if(lba>dev->num_blocks-1)
-		return -1;
-	if(buffersize % dev->block_size)
-		return -1;
-	if(lba + (buffersize/dev->block_size) > dev->num_blocks)
-		return -1;
-	if(!buffer)
-		return -1;
-	if(!buffersize)
-		return 0;
-
-	int rc = mmc_read(BLOCK_SIZE * lba, buffer, buffersize);
-	return rc != 0;
-}
-
-static int api_mmc_write(lkapi_biodev_t* dev, unsigned long long lba, unsigned long buffersize, void* buffer) {
-	if(lba>dev->num_blocks-1)
-		return -1;
-	if(buffersize % dev->block_size)
-		return -1;
-	if(lba + (buffersize/dev->block_size) > dev->num_blocks)
-		return -1;
-	if(!buffer)
-		return -1;
-	if(!buffersize)
-		return 0;
-
-// there's no reason that UEFI should be able to do this
-// also it could be too risky because we have no experience with uncached buffers
-#if 0
-	int rc = mmc_write(BLOCK_SIZE * lba, buffersize, buffer);
-	dprintf(CRITICAL, "%s(%p, %llu, %lu, %p) = %d\n", __func__, dev, lba, buffersize, buffer, rc);
-	return rc != 0;
-#else
-	ASSERT(0);
-	return 0;
-#endif
-}
-
-int api_bio_list(lkapi_biodev_t* list) {
-	int count = 0, dev;
-
-	// MMC
-	dev = count++;
-	if(list) {
-		list[dev].type = LKAPI_BIODEV_TYPE_MMC;
-		list[dev].block_size = BLOCK_SIZE;
-		list[dev].num_blocks = 0;
-		list[dev].init = api_mmc_init;
-		list[dev].read = api_mmc_read;
-		list[dev].write = api_mmc_write;
-	}
-
-	return count;
 }
 
 void* api_mmap_get_platform_mappings(void* pdata, lkapi_mmap_mappings_cb_t cb) {
