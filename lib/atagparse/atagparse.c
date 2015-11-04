@@ -23,6 +23,7 @@ static char* command_line = NULL;
 static uint32_t platform_id = 0;
 static uint32_t variant_id = 0;
 static uint32_t soc_rev = 0;
+static lkargs_uefi_bootmode uefi_bootmode = LKARGS_UEFI_BM_NORMAL;
 static bool has_board_info = false;
 
 uint32_t lkargs_get_machinetype(void) {
@@ -32,7 +33,6 @@ uint32_t lkargs_get_machinetype(void) {
 const char* lkargs_get_command_line(void) {
 	return command_line;
 }
-
 
 uint32_t lkargs_get_platform_id(void) {
 	return platform_id;
@@ -44,6 +44,10 @@ uint32_t lkargs_get_variant_id(void) {
 
 uint32_t lkargs_get_soc_rev(void) {
 	return soc_rev;
+}
+
+lkargs_uefi_bootmode lkargs_get_uefi_bootmode(void) {
+	return uefi_bootmode;
 }
 
 // backup functions
@@ -542,4 +546,15 @@ void atag_parse(void) {
 
 	// add to global cmdline lib
 	cmdline_addall(command_line, true);
+
+	// get bootmode
+	const char* bootmode = cmdline_get("uefi.bootmode");
+	if(bootmode) {
+		dprintf(INFO, "uefi.bootmode = [%s]\n", bootmode);
+
+		if(!strcmp(bootmode, "recovery"))
+			uefi_bootmode = LKARGS_UEFI_BM_RECOVERY;
+
+		cmdline_remove("uefi.bootmode");
+	}
 }

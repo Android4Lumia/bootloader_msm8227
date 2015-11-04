@@ -24,7 +24,10 @@
 		cmdline_add("androidboot.baseband", (str)); \
 		break;
 
+bool cmdline_has(const char* name);
+const char* cmdline_get(const char* name);
 void cmdline_add(const char* name, const char* value, bool overwrite);
+void cmdline_remove(const char* name);
 size_t cmdline_length(void);
 size_t cmdline_generate(char* buf, size_t bufsize);
 void cmdline_addall(char* cmdline, bool overwrite);

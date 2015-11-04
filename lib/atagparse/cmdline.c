@@ -12,7 +12,7 @@ typedef struct cmdline_item {
 
 static struct list_node cmdline_list;
 
-static cmdline_item_t* cmdline_get(const char* name) {
+static cmdline_item_t* cmdline_get_internal(const char* name) {
 	cmdline_item_t *item;
 	list_for_every_entry(&cmdline_list, item, cmdline_item_t, node) {
 		if(!strcmp(name, item->name))
@@ -22,8 +22,21 @@ static cmdline_item_t* cmdline_get(const char* name) {
 	return NULL;
 }
 
+bool cmdline_has(const char* name) {
+	return !!cmdline_get_internal(name);
+}
+
+const char* cmdline_get(const char* name) {
+	cmdline_item_t* item = cmdline_get_internal(name);
+
+	if(!item)
+		return NULL;
+
+	return item->value;
+}
+
 void cmdline_add(const char* name, const char* value, bool overwrite) {
-	cmdline_item_t* item = cmdline_get(name);
+	cmdline_item_t* item = cmdline_get_internal(name);
 	if(item) {
 		if(!overwrite) return;
 
@@ -38,6 +51,16 @@ void cmdline_add(const char* name, const char* value, bool overwrite) {
 	item->value = value?strdup(value):NULL;
 
 	list_add_tail(&cmdline_list, &item->node);
+}
+
+void cmdline_remove(const char* name) {
+	cmdline_item_t* item = cmdline_get_internal(name);
+	if(item) {
+		list_delete(&item->node);
+		free(item->name);
+		free(item->value);
+		free(item);
+	}
 }
 
 size_t cmdline_length(void) {
