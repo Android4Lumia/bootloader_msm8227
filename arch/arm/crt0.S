@@ -105,7 +105,11 @@ reset:
 	beq		.Lstack_setup
 
 	/* we need to relocate ourselves to the proper spot */
+#ifdef WITH_KERNEL_UEFIAPI
+	ldr		r2, =(__data_end + EDK2_SIZE)
+#else
 	ldr		r2, =__data_end	
+#endif
 
 .Lrelocate_loop:
 	ldr		r3, [r0], #4
@@ -162,6 +166,18 @@ lk_boot_args:
 	ldr		r2, =abort_stack_top
 #endif
 	mov		sp, r2
+
+#ifdef WITH_KERNEL_UEFIAPI
+	ldr     r0, =__data_end
+	ldr     r1, =EDK2_BASE
+	ldr     r2, =(EDK2_BASE + EDK2_SIZE)
+
+.Ledk2_relocate_loop:
+	ldr		r3, [r0], #4
+	str		r3, [r1], #4
+	cmp		r1, r2
+	bne		.Ledk2_relocate_loop
+#endif
 
 	/* copy the initialized data segment out of rom if necessary */
 	ldr		r0, =__data_start_rom
