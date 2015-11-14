@@ -127,3 +127,9 @@ uint32_t qtimer_tick_rate()
 {
 	return ticks_per_sec;
 }
+
+/* Returns timer ticks per sec */
+uint32_t platform_tick_rate(void)
+{
+	return qtimer_get_frequency();
+}
