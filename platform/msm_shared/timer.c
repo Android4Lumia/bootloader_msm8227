@@ -105,6 +105,8 @@ void mdelay(unsigned msecs)
 {
 	msecs *= 33;
 
+	enter_critical_section();
+
 	writel(0, GPT_CLEAR);
 	writel(0, GPT_ENABLE);
 	while (readl(GPT_COUNT_VAL) != 0) ;
@@ -114,11 +116,15 @@ void mdelay(unsigned msecs)
 
 	writel(0, GPT_ENABLE);
 	writel(0, GPT_CLEAR);
+
+	exit_critical_section();
 }
 
 void udelay(unsigned usecs)
 {
 	usecs = (usecs * 33 + 1000 - 33) / 1000;
+
+	enter_critical_section();
 
 	writel(0, GPT_CLEAR);
 	writel(0, GPT_ENABLE);
@@ -129,6 +135,8 @@ void udelay(unsigned usecs)
 
 	writel(0, GPT_ENABLE);
 	writel(0, GPT_CLEAR);
+
+	exit_critical_section();
 }
 
 /* Return current time in micro seconds */
