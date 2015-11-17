@@ -1,5 +1,4 @@
-/*
- * Copyright (c) 2011, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2015, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -10,7 +9,7 @@
  *       copyright notice, this list of conditions and the following
  *       disclaimer in the documentation and/or other materials provided
  *       with the distribution.
- *     * Neither the name of The Linux Foundation nor the names of its
+ *     * Neither the name of The Linux Foundation, Inc. nor the names of its
  *       contributors may be used to endorse or promote products derived
  *       from this software without specific prior written permission.
  *
@@ -25,48 +24,49 @@
  * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
  * OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ *
  */
 
-#include<dev/pm8921_leds.h>
-#include<dev/pm8921.h>
+#include <stdlib.h>
 
-void led_tests()
-{
-uint32_t duty_us, period_us;
+struct mdtp_ui_defs {
 
-    /* 50% Duty cycle */
-    duty_us = 500000;
-    period_us = 1000000;
+    // Image dimensions
+    uint32_t error_msg_width;
+    uint32_t error_msg_height;
+    uint32_t main_text_width;
+    uint32_t main_text_height;
+    uint32_t pin_digit_width;
+    uint32_t pin_digit_height;
+    uint32_t ok_button_width;
+    uint32_t ok_button_height;
+    uint32_t digits_instructions_width;
+    uint32_t digits_instructions_height;
+    uint32_t pin_instructions_width;
+    uint32_t pin_instructions_height;
 
-    /* Configure PM8921_ID_LED_0 from PWM2*/
-    pm8921_config_led_current(PM8921_ID_LED_0, 2, PWM2, 1);
+    // Image offsets
+    uint32_t error_msg_offset;
+    uint32_t initial_delay_offset;
+    uint32_t enter_pin_offset;
+    uint32_t invalid_pin_offset;
+    uint32_t pin_digit_0_offset;
+    uint32_t pin_digits_offset;
+    uint32_t pin_selected_digit_0_offset;
+    uint32_t ok_button_offset;
+    uint32_t selected_ok_button_offset;
+    uint32_t digits_instructions_offset;
+    uint32_t pin_instructions_offset;
 
-    /* PWM2 for PM8921_ID_LED_0 is LPG 5
-     * Configure and enable lpg5
-     */
-    pm_set_pwm_config(5, duty_us, period_us, &pmic);
-    pm_pwm_channel_enable(5, &pmic);
+    //Display settings
+    uint32_t digit_space;
+};
 
-    /* Configure and enable lpg0 for  panel backlight*/
-    pm_set_pwm_config(0, duty_us, period_us, &pmic);
-    pm_pwm_channel_enable(0, &pmic);
+struct mdtp_target_efuse {
+    uint32_t address;
+    uint32_t start;
+};
 
-    mdelay(10000);
+struct mdtp_ui_defs mdtp_get_target_ui_defs();
 
-    /* Configure PM8921_ID_LED_1 also from PWM2*/
-    pm8921_config_led_current(PM8921_ID_LED_1, 2, PWM2, 1);
-    mdelay(10000);
-
-    /* Disable PM8921_ID_LED_0 */
-    pm8921_config_led_current(PM8921_ID_LED_0, 2, 2, 0);
-
-    /* Turn on GPIO 24 through LPG 0
-     * Will be reconfigured during display_init
-     */
-    panel_backlight_on_pwm();
-
-    mdelay(10000);
-
-    /* Disable PM8921_ID_LED_1 */
-    pm8921_config_led_current(PM8921_ID_LED_1, 2, 2, 0);
-}
+int mdtp_get_target_efuse(struct mdtp_target_efuse* target_efuse);

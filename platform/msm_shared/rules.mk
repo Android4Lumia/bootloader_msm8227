@@ -60,6 +60,7 @@ OBJS += \
 		$(LOCAL_DIR)/rpm-ipc.o \
 		$(LOCAL_DIR)/glink/glink_api.o \
 		$(LOCAL_DIR)/glink/glink_core_if.o \
+		$(LOCAL_DIR)/glink/glink_core_internal.o \
 		$(LOCAL_DIR)/glink/glink_rpmcore_setup.o \
 		$(LOCAL_DIR)/glink/glink_core_intentless_xport.o \
 		$(LOCAL_DIR)/glink/glink_os_utils_dal.o \
@@ -563,7 +564,8 @@ DEFINES += DISPLAY_TYPE_MDSS=1
 			$(LOCAL_DIR)/mipi_dsi.o \
 			$(LOCAL_DIR)/mipi_dsc.o \
 			$(LOCAL_DIR)/mipi_dsi_phy.o \
-			$(LOCAL_DIR)/mipi_dsi_autopll_thulium.o
+			$(LOCAL_DIR)/mipi_dsi_autopll_thulium.o \
+			$(LOCAL_DIR)/shutdown_detect.o
 endif
 
 ifeq ($(ENABLE_UFS_SUPPORT), 1)

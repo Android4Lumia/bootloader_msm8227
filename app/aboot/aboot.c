@@ -90,17 +90,19 @@
 #include "board.h"
 #include "scm.h"
 #include "mdtp.h"
+#include "fastboot_test.h"
 
 extern  bool target_use_signed_kernel(void);
 extern void platform_uninit(void);
 extern void target_uninit(void);
 extern int get_target_boot_params(const char *cmdline, const char *part,
-				  char *buf, int buflen);
+				  char **buf);
 
 void *info_buf;
 void write_device_info_mmc(device_info *dev);
 void write_device_info_flash(device_info *dev);
 static int aboot_save_boot_hash_mmc(uint32_t image_addr, uint32_t image_size);
+static int aboot_frp_unlock(char *pname, void *data, unsigned sz);
 
 /* fastboot command function pointer */
 typedef void (*fastboot_cmd_fn) (const char *, void *, unsigned);
@@ -166,9 +168,10 @@ static unsigned page_size = 0;
 static unsigned page_mask = 0;
 static char ffbm_mode_string[FFBM_MODE_BUF_SIZE];
 static bool boot_into_ffbm;
-static char target_boot_params[64];
+static char *target_boot_params = NULL;
 static bool boot_reason_alarm;
 static bool devinfo_present = true;
+bool boot_into_fastboot = false;
 
 /* Assuming unauthorized kernel image by default */
 static int auth_kernel_img = 0;
@@ -304,8 +307,7 @@ unsigned char *update_cmdline(const char * cmdline)
 
 	if (get_target_boot_params(cmdline, boot_into_recovery ? "recoveryfs" :
 								 "system",
-				   target_boot_params,
-				   sizeof(target_boot_params)) == 0) {
+						&target_boot_params) == 0) {
 		have_target_boot_params = 1;
 		cmdline_len += strlen(target_boot_params);
 	}
@@ -374,6 +376,7 @@ unsigned char *update_cmdline(const char * cmdline)
 
 		cmdline_final = (unsigned char*) malloc((cmdline_len + 4) & (~3));
 		ASSERT(cmdline_final != NULL);
+		memset((void *)cmdline_final, 0, sizeof(*cmdline_final));
 		dst = cmdline_final;
 
 		/* Save start ptr for debug print */
@@ -518,6 +521,7 @@ unsigned char *update_cmdline(const char * cmdline)
 			if (have_cmdline) --dst;
 			src = target_boot_params;
 			while ((*dst++ = *src++));
+			free(target_boot_params);
 		}
 	}
 
@@ -666,14 +670,13 @@ void boot_linux(void *kernel, unsigned *tags,
 	}
 #endif
 
-	/* Perform target specific cleanup */
-	target_uninit();
-
 	/* Turn off splash screen if enabled */
 #if DISPLAY_SPLASH_SCREEN
 	target_display_shutdown();
 #endif
 
+	/* Perform target specific cleanup */
+	target_uninit();
 
 	dprintf(INFO, "booting linux @ %p, ramdisk @ %p (%d), tags/device tree @ %p\n",
 		entry, ramdisk, ramdisk_size, (void *)tags_phys);
@@ -987,6 +990,9 @@ int boot_linux_from_mmc(void)
 		page_mask = page_size - 1;
 	}
 
+	/* ensure commandline is terminated */
+	hdr->cmdline[BOOT_ARGS_SIZE-1] = 0;
+
 	kernel_actual  = ROUND_TO_PAGE(hdr->kernel_size,  page_mask);
 	ramdisk_actual = ROUND_TO_PAGE(hdr->ramdisk_size, page_mask);
 
@@ -1041,7 +1047,11 @@ int boot_linux_from_mmc(void)
 		device.is_unlocked,
 		device.is_tampered);
 
-	if(target_use_signed_kernel() && (!device.is_unlocked))
+	/* Change the condition a little bit to include the test framework support.
+	 * We would never reach this point if device is in fastboot mode, even if we did
+	 * that means we are in test mode, so execute kernel authentication part for the
+	 * tests */
+	if((target_use_signed_kernel() && (!device.is_unlocked)) || boot_into_fastboot)
 	{
 		offset = imagesize_actual;
 		if (check_aboot_addr_range_overlap((uint32_t)image_addr + offset, page_size))
@@ -1058,6 +1068,9 @@ int boot_linux_from_mmc(void)
 		}
 
 		verify_signed_bootimg((uint32_t)image_addr, imagesize_actual);
+		/* The purpose of our test is done here */
+		if (boot_into_fastboot && auth_kernel_img)
+			return 0;
 	} else {
 		second_actual  = ROUND_TO_PAGE(hdr->second_size,  page_mask);
 		#ifdef TZ_SAVE_KERNEL_HASH
@@ -1291,6 +1304,9 @@ int boot_linux_from_flash(void)
 		dprintf(CRITICAL, "ERROR: Invalid boot image pagesize. Device pagesize: %d, Image pagesize: %d\n",page_size,hdr->page_size);
 		return -1;
 	}
+
+	/* ensure commandline is terminated */
+	hdr->cmdline[BOOT_ARGS_SIZE-1] = 0;
 
 	/*
 	 * Update the kernel/ramdisk/tags address if the boot image header
@@ -1960,6 +1976,17 @@ void cmd_boot(const char *arg, void *data, unsigned sz)
 		return;
 	}
 
+	/* Handle overflow if the input image size is greater than
+	 * boot image buffer can hold
+	 */
+#if VERIFIED_BOOT
+	if ((target_get_max_flash_size() - (image_actual - sig_actual)) < page_size)
+	{
+		fastboot_fail("booimage: size is greater than boot image buffer can hold");
+		return;
+	}
+#endif
+
 	/* Verify the boot image
 	 * device & page_size are initialized in aboot_init
 	 */
@@ -2193,6 +2220,14 @@ void cmd_erase(const char *arg, void *data, unsigned sz)
 		cmd_erase_nand(arg, data, sz);
 }
 
+static uint32_t aboot_get_secret_key()
+{
+	/* 0 is invalid secret key, update this implementation to return
+	 * device specific unique secret key
+	 */
+	return 0;
+}
+
 void cmd_flash_mmc_img(const char *arg, void *data, unsigned sz)
 {
 	unsigned long long ptn = 0;
@@ -2216,6 +2251,19 @@ void cmd_flash_mmc_img(const char *arg, void *data, unsigned sz)
 
 	if (pname)
 	{
+		if (!strncmp(pname, "frp-unlock", strlen("frp-unlock")))
+		{
+			if (!aboot_frp_unlock(pname, data, sz))
+			{
+				fastboot_info("FRP unlock successful");
+				fastboot_okay("");
+			}
+			else
+				fastboot_fail("Secret key is invalid, please update the bootloader with secret key");
+
+			return;
+		}
+
 		if (!strcmp(pname, "partition"))
 		{
 			dprintf(INFO, "Attempt to write partition image.\n");
@@ -2835,6 +2883,26 @@ void cmd_oem_unlock_go(const char *arg, void *data, unsigned sz)
 	fastboot_okay("");
 }
 
+static int aboot_frp_unlock(char *pname, void *data, unsigned sz)
+{
+	int ret = 1;
+	uint32_t secret_key;
+	char seckey_buffer[MAX_RSP_SIZE];
+
+	secret_key = aboot_get_secret_key();
+	if (secret_key)
+	{
+		snprintf((char *) seckey_buffer, MAX_RSP_SIZE, "%x", secret_key);
+		if (!memcmp((void *)data, (void *)seckey_buffer, sz))
+		{
+			is_allow_unlock = true;
+			write_allow_oem_unlock(is_allow_unlock);
+			ret = 0;
+		}
+	}
+	return ret;
+}
+
 void cmd_oem_lock(const char *arg, void *data, unsigned sz)
 {
 	/* TODO: Wipe user data */
@@ -2962,8 +3030,8 @@ int splash_screen_flash()
 			return 0;
 		}
 
-		if ((header->width != fb_display->width) || (header->height != fb_display->height)) {
-			dprintf(CRITICAL, "Logo config doesn't match with fb config. Fall back default logo\n");
+		if ((header->width > fb_display->width) || (header->height > fb_display->height)) {
+			dprintf(CRITICAL, "Logo config greater than fb config. Fall back default logo\n");
 			return -1;
 		}
 
@@ -3049,8 +3117,8 @@ int splash_screen_mmc()
 			fbcon_extract_to_screen(header, (base + LOGO_IMG_HEADER_SIZE));
 		} else { /* 2 Raw BGR data */
 
-			if ((header->width != fb_display->width) || (header->height != fb_display->height)) {
-				dprintf(CRITICAL, "Logo config doesn't match with fb config. Fall back default logo\n");
+			if ((header->width > fb_display->width) || (header->height > fb_display->height)) {
+				dprintf(CRITICAL, "Logo config greater than fb config. Fall back default logo\n");
 				return -1;
 			}
 
@@ -3380,6 +3448,9 @@ void aboot_fastboot_register_commands(void)
 											{"oem enable-charger-screen", cmd_oem_enable_charger_screen},
 											{"oem disable-charger-screen", cmd_oem_disable_charger_screen},
 											{"oem select-display-panel", cmd_oem_select_display_panel},
+#if UNITTEST_FW_SUPPORT
+											{"oem run-tests", cmd_oem_runtests},
+#endif
 #if WITH_DEBUG_LOG_BUF
 											{"oem lk_log", cmd_oem_lk_log},
 #endif
@@ -3428,7 +3499,6 @@ void aboot_fastboot_register_commands(void)
 void aboot_init(const struct app_descriptor *app)
 {
 	unsigned reboot_mode = 0;
-	bool boot_into_fastboot = false;
 
 	/* Setup page size information for nv storage */
 	if (target_is_emmc_boot())

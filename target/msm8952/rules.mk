@@ -28,6 +28,8 @@ MODULES += \
 	dev/vib \
 	lib/libfdt \
 	dev/qpnp_wled \
+	dev/pmic/pmi8994 \
+	dev/pmic/fgsram \
 	dev/gcdb/display
 
 DEFINES += \
@@ -47,7 +49,7 @@ OBJS += \
 endif
 ifeq ($(ENABLE_MDTP_SUPPORT),1)
 OBJS += \
-	$(LOCAL_DIR)/mdtp_ui_defs.o
+	$(LOCAL_DIR)/mdtp_defs.o
 endif
 
 ifneq ($(DISPLAY_2NDSTAGE),1)

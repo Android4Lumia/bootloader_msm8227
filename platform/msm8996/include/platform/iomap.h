@@ -80,9 +80,17 @@
 
 #define AHB2_PHY_BASE               0x7416000
 #define PERIPH_SS_AHB2PHY_TOP_CFG   (AHB2_PHY_BASE + 0x10)
+#define GCC_RX2_USB2_CLKREF_EN      0x00388014
 
 /* Clocks */
 #define CLK_CTL_BASE                0x300000
+
+#define PMI_SLAVE_BASE           2
+#define PMI_FIRST_SLAVE_OFFSET   0
+#define PMI_SECOND_SLAVE_OFFSET  1
+
+#define PMI_FIRST_SLAVE_ADDR_BASE   (( PMI_SLAVE_BASE + PMI_FIRST_SLAVE_OFFSET ) << 16)
+#define PMI_SECOND_SLAVE_ADDR_BASE  (( PMI_SLAVE_BASE + PMI_SECOND_SLAVE_OFFSET) << 16)
 
 /* GPLL */
 #define GPLL0_MODE                  (CLK_CTL_BASE + 0x0000)
@@ -194,7 +202,7 @@
  * as device memory, define the start address
  * and size in MB
  */
-#define RPMB_SND_RCV_BUF            0x91400000
+#define RPMB_SND_RCV_BUF            0x91A00000
 #define RPMB_SND_RCV_BUF_SZ         0x2
 
 #define TCSR_BOOT_MISC_DETECT       0x007B3000
@@ -543,9 +551,4 @@
 #define APPS_WDOG_RESET_REG         (APSS_WDOG_BASE + 0x04)
 #define APPS_WDOG_CTL_REG           (APSS_WDOG_BASE + 0x08)
 
-#define DDR_START                    platform_get_ddr_start()
-#define ABOOT_FORCE_KERNEL_ADDR      DDR_START + 0x8000
-#define ABOOT_FORCE_RAMDISK_ADDR     DDR_START + 0x2200000
-#define ABOOT_FORCE_TAGS_ADDR        DDR_START + 0x2000000
-#define ABOOT_FORCE_KERNEL64_ADDR    DDR_START + 0x80000
 #endif

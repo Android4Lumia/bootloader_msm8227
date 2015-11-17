@@ -2,19 +2,27 @@ LOCAL_DIR := $(GET_LOCAL_DIR)
 
 INCLUDES += -I$(LOCAL_DIR)/include -I$(LK_TOP_DIR)/platform/msm_shared
 INCLUDES += -I$(LK_TOP_DIR)/dev/gcdb/display -I$(LK_TOP_DIR)/dev/gcdb/display/include
+ifeq ($(ENABLE_MDTP_SUPPORT),1)
+INCLUDES += -I$(LK_TOP_DIR)/app/aboot
+endif
 
 PLATFORM := msm8996
 
-MEMBASE ?= 0x91000000 # SDRAM
+MEMBASE ?= 0x91600000 # SDRAM
 MEMSIZE ?= 0x00400000 # 4MB
 
 BASE_ADDR    := 0x0000000
 
-SCRATCH_ADDR := 0x91600000
-SCRATCH_SIZE := 746
+SCRATCH_ADDR := 0x91C00000
+SCRATCH_SIZE := 740
+KERNEL_ADDR  := 0x80000000
+KERNEL_SIZE  := 88
+
 # LPAE supports only 32 virtual address, L1 pt size is 4
 L1_PT_SZ     := 4
 L2_PT_SZ     := 3
+
+DEFINES += PMI_CONFIGURED=1
 
 DEFINES += DISPLAY_SPLASH_SCREEN=1
 DEFINES += DISPLAY_TYPE_MIPI=1
@@ -23,6 +31,8 @@ DEFINES += DISPLAY_TYPE_DSI6G=1
 MODULES += \
 	dev/keys \
 	dev/pmic/pm8x41 \
+	dev/qpnp_haptic \
+	dev/vib \
 	dev/qpnp_wled \
 	dev/qpnp_led \
 	dev/gcdb/display \
@@ -36,6 +46,8 @@ DEFINES += \
 	BASE_ADDR=$(BASE_ADDR) \
 	TAGS_ADDR=$(TAGS_ADDR) \
 	RAMDISK_ADDR=$(RAMDISK_ADDR) \
+	KERNEL_ADDR=$(KERNEL_ADDR) \
+	KERNEL_SIZE=$(KERNEL_SIZE) \
 	SCRATCH_ADDR=$(SCRATCH_ADDR) \
 	SCRATCH_SIZE=$(SCRATCH_SIZE) \
 	L1_PT_SZ=$(L1_PT_SZ) \
@@ -50,6 +62,11 @@ OBJS += \
 ifeq ($(ENABLE_GLINK_SUPPORT),1)
 OBJS += \
     $(LOCAL_DIR)/regulator.o
+endif
+
+ifeq ($(ENABLE_MDTP_SUPPORT),1)
+OBJS += \
+	$(LOCAL_DIR)/mdtp_defs.o
 endif
 
 ifneq ($(DISPLAY_2NDSTAGE),1)

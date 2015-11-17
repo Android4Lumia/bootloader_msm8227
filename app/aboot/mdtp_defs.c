@@ -27,39 +27,49 @@
  *
  */
 
-#include <stdlib.h>
+#include <compiler.h>
+#include "mdtp_defs.h"
 
-struct mdtp_ui_defs {
+struct mdtp_ui_defs mdtp_ui_defs_default = {
+        // Image dimensions
+        1412,     // error_msg_width;
+        212,      // error_msg_height;
+        1364,     // main_text_width;
+        288,      // main_text_height;
+        180,      // pin_digit_width;
+        180,      // pin_digit_height;
+        644,      // ok_button_width;
+        158,      // ok_button_height;
+        1384,     // digits_instructions_width;
+        166,      // digits_instructions_height;
+        920,      // pin_instructions_width;
+        204,      // pin_instructions_height;
 
-    // Image dimensions
-    uint32_t error_msg_width;
-    uint32_t error_msg_height;
-    uint32_t main_text_width;
-    uint32_t main_text_height;
-    uint32_t pin_digit_width;
-    uint32_t pin_digit_height;
-    uint32_t ok_button_width;
-    uint32_t ok_button_height;
-    uint32_t digits_instructions_width;
-    uint32_t digits_instructions_height;
-    uint32_t pin_instructions_width;
-    uint32_t pin_instructions_height;
+        // Image offsets
+        0x1000,   // error_msg_offset;
+        0xDD000,  // initial_delay_offset;
+        0x1FD000, // enter_pin_offset;
+        0x31D000, // invalid_pin_offset;
+        0x43D000, // pin_digit_0_offset;
+        0x18000,  // pin_digits_offset;
+        0x52D000, // pin_selected_digit_0_offset;
+        0x61D000, // ok_button_offset;
+        0x668000, // selected_ok_button_offset;
+        0x6B3000, // digits_instructions_offset;
+        0x75C000, // pin_instructions_offset;
 
-    // Image offsets
-    uint32_t error_msg_offset;
-    uint32_t initial_delay_offset;
-    uint32_t enter_pin_offset;
-    uint32_t invalid_pin_offset;
-    uint32_t pin_digit_0_offset;
-    uint32_t pin_digits_offset;
-    uint32_t pin_selected_digit_0_offset;
-    uint32_t ok_button_offset;
-    uint32_t selected_ok_button_offset;
-    uint32_t digits_instructions_offset;
-    uint32_t pin_instructions_offset;
-
-    //Display settings
-    uint32_t digit_space;
+        //Display settings
+        12        // mdtp_digit_space;
 };
 
-struct mdtp_ui_defs mdtp_get_target_ui_defs();
+__WEAK struct mdtp_ui_defs mdtp_get_target_ui_defs()
+{
+    return mdtp_ui_defs_default;
+}
+
+__WEAK int mdtp_get_target_efuse(struct mdtp_target_efuse* target_efuse)
+{
+
+    dprintf(CRITICAL, "mdtp: mdtp_get_target_efuse: ERROR, eFuse not defined for this target\n");
+    return -1;
+}
