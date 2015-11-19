@@ -83,6 +83,9 @@ size_t cmdline_length(void) {
 size_t cmdline_generate(char* buf, size_t bufsize) {
 	size_t len = 0;
 
+	if(bufsize>0)
+		buf[0] = 0;
+
 	cmdline_item_t *item;
 	list_for_every_entry(&cmdline_list, item, cmdline_item_t, node) {
 		if(len!=0) buf[len++] = ' ';
