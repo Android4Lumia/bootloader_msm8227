@@ -126,8 +126,11 @@ static int str2nameval(const char* str, char** name, char** value) {
 	return 0;
 }
 
-void cmdline_addall(char* cmdline, bool overwrite) {
+void cmdline_addall(const char* _cmdline, bool overwrite) {
 	char* sep = " ";
+
+	char* cmdline = strdup(_cmdline);
+	if(!cmdline) return;
 
 	char *pch = strtok(cmdline, sep);
 	while (pch != NULL) {
@@ -141,6 +144,8 @@ void cmdline_addall(char* cmdline, bool overwrite) {
 
 		pch = strtok(NULL, sep);
 	}
+
+	free(cmdline);
 }
 
 void cmdline_init(void)

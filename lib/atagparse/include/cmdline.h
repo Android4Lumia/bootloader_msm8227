@@ -30,7 +30,7 @@ void cmdline_add(const char* name, const char* value, bool overwrite);
 void cmdline_remove(const char* name);
 size_t cmdline_length(void);
 size_t cmdline_generate(char* buf, size_t bufsize);
-void cmdline_addall(char* cmdline, bool overwrite);
+void cmdline_addall(const char* cmdline, bool overwrite);
 void cmdline_init(void);
 
 
