@@ -2,14 +2,16 @@
 #include <debug.h>
 #include <stdint.h>
 #include <mmc.h>
+#include <spmi.h>
 #include <board.h>
 #include <target.h>
 #include <pm8x41.h>
+#include <qtimer.h>
 #include <dev/keys.h>
-#include <dev/fbcon.h>
-#include <mipi_dsi.h>
+#include <sdhci_msm.h>
 #include <target/display.h>
 #include <platform/iomap.h>
+#include <platform/clock.h>
 #include <platform/timer.h>
 #include <platform/gpio.h>
 #include <partition_parser.h>
@@ -117,9 +119,9 @@ void api_platform_uninit(void) {
 //                            BlockIO                                  //
 /////////////////////////////////////////////////////////////////////////
 
+void target_sdc_init(void);
+
 int api_mmc_init(lkapi_biodev_t* biodev) {
-	unsigned base_addr;
-	unsigned char slot;
 	static int initialized = 0;
 
 	if(initialized)
