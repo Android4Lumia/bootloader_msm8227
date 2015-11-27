@@ -428,7 +428,7 @@ int mdp_dump_config(struct fbcon_config *fb) {
 #ifdef DISPLAY_RGBSWAP
 	unsigned char DST_FORMAT = 8;
 	int data = 0x00100000;
-	data |= ((DSI_RGB_SWAP_BGR & 0x07) << 16);
+	data |= ((DISPLAY_RGBSWAP & 0x07) << 16);
 	writel(data | DST_FORMAT, DSI_COMMAND_MODE_MDP_CTRL);
 #endif
 
