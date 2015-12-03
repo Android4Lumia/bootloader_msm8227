@@ -10,6 +10,7 @@
 #include <dev/keys.h>
 #include <dev/fbcon.h>
 #include <mipi_dsi.h>
+#include <sdhci_msm.h>
 #include <target/display.h>
 #include <platform/iomap.h>
 #include <platform/clock.h>
@@ -107,6 +108,10 @@ static key_event_source_t event_source = {
 //                            PLATFORM                                 //
 /////////////////////////////////////////////////////////////////////////
 
+#if MMC_SDHCI_SUPPORT
+extern struct mmc_device *dev;
+#endif
+
 void api_platform_early_init(void) {
 	// from platform_early_init, but without GIC
 	board_init();
@@ -128,6 +133,19 @@ void api_platform_init(void) {
 	keys_init();
 	keys_add_source(&event_source);
 }
+
+void api_platform_uninit(void) {
+	// from target_uninit
+#if MMC_SDHCI_SUPPORT
+	mmc_put_card_to_sleep(dev);
+#else
+	mmc_put_card_to_sleep();
+#endif
+
+	// Disable HC mode before jumping to kernel
+	sdhci_mode_disable(&dev->host);
+}
+
 
 /////////////////////////////////////////////////////////////////////////
 //                            BlockIO                                  //
