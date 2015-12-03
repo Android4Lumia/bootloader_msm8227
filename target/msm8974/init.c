@@ -59,7 +59,7 @@
 extern int platform_is_8974();
 extern int platform_is_8974ac();
 extern  bool target_use_signed_kernel(void);
-static void set_sdc_power_ctrl();
+void set_sdc_power_ctrl();
 
 static unsigned int target_id;
 static uint32_t pmic_ver;
@@ -202,7 +202,7 @@ crypto_engine_type board_ce_type(void)
 }
 
 #if MMC_SDHCI_SUPPORT
-static void target_mmc_sdhci_init()
+void target_mmc_sdhci_init()
 {
 	struct mmc_config_data config = {0};
 	uint32_t soc_ver = 0;
@@ -272,7 +272,7 @@ void *target_mmc_device()
 }
 
 #else
-static void target_mmc_mci_init()
+void target_mmc_mci_init()
 {
 	uint32_t base_addr;
 	uint8_t slot;
@@ -713,7 +713,7 @@ void shutdown_device()
 	dprintf(CRITICAL, "Shutdown failed\n");
 }
 
-static void set_sdc_power_ctrl()
+void set_sdc_power_ctrl()
 {
 	uint8_t tlmm_hdrv_clk = 0;
 	uint32_t platform_id = 0;

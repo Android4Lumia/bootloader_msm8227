@@ -45,3 +45,8 @@ ifneq ($(DISPLAY_2NDSTAGE),1)
 OBJS += \
     $(LOCAL_DIR)/target_display.o
 endif
+
+ifdef WITH_KERNEL_UEFIAPI
+OBJS += \
+    $(LOCAL_DIR)/uefiapi.o
+endif
