@@ -127,7 +127,7 @@ void api_platform_init(void) {
 	// Initialize PMIC driver
 	spmi_init(PMIC_ARB_CHANNEL_NUM, PMIC_ARB_OWNER_ID);
 
-    	/* Save PM8941 version info. */
+	/* Save PM8941 version info. */
 	pmic_ver = pm8x41_get_pmic_rev();
 
 	keys_init();
