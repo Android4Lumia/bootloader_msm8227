@@ -1310,11 +1310,10 @@ int update_device_tree(void *fdt, const char *cmdline,
 
 	offset = ret;
 
-#if EFIDROID_2NDSTAGE
-	ret = lkargs_gen_meminfo_fdt(fdt, offset);
-#else
-	ret = target_dev_tree_mem(fdt, offset);
-#endif
+	if(lkargs_has_meminfo())
+		ret = lkargs_gen_meminfo_fdt(fdt, offset);
+	else
+		ret = target_dev_tree_mem(fdt, offset);
 	if(ret)
 	{
 		dprintf(CRITICAL, "ERROR: Cannot update memory node\n");

@@ -174,6 +174,10 @@ unsigned *lkargs_gen_meminfo_atags(unsigned *ptr)
 	return ptr;
 }
 
+bool lkargs_has_meminfo(void) {
+	return !!meminfo;
+}
+
 // parse FDT
 #if DEVICE_TREE
 struct dt_entry_v1
