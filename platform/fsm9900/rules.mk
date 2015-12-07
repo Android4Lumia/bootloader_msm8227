@@ -18,6 +18,10 @@ INCLUDES += -I$(LOCAL_DIR)/include
 # as it's not yet supported by bootloader's libc
 CFLAGS += -fno-stack-protector
 
+# Explicitly pass -marm option to compiler since -mthumb
+# option may be enabled by default on some toolchains
+CFLAGS += -marm
+
 DEVS += fbcon
 MODULES += dev/fbcon
 
