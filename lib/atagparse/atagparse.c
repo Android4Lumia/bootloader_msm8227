@@ -11,19 +11,27 @@
 #include <dev_tree.h>
 #endif
 
+typedef struct {
+    uint32_t start;
+    uint32_t size;
+} meminfo_t;
+
 // lk boot args
 extern uint32_t lk_boot_args[4];
 
 // atags backup
 static void* tags_copy = NULL;
 
-// parsed data
+// parsed data: common
 static uint32_t machinetype = 0;
 static char* command_line = NULL;
+static lkargs_uefi_bootmode uefi_bootmode = LKARGS_UEFI_BM_NORMAL;
+static meminfo_t* meminfo = NULL;
+static size_t meminfo_count = 0;
+// parsed data: fdt
 static uint32_t platform_id = 0;
 static uint32_t variant_id = 0;
 static uint32_t soc_rev = 0;
-static lkargs_uefi_bootmode uefi_bootmode = LKARGS_UEFI_BM_NORMAL;
 static bool has_board_info = false;
 
 uint32_t lkargs_get_machinetype(void) {
@@ -92,6 +100,12 @@ static int parse_atag_core(const struct tag *tag)
 static int parse_atag_mem32(const struct tag *tag)
 {
 	dprintf(INFO, "0x%08x-0x%08x\n", tag->u.mem.start, tag->u.mem.start+tag->u.mem.size);
+
+	meminfo = realloc(meminfo, (++meminfo_count)*sizeof(*meminfo));
+	ASSERT(meminfo);
+
+	meminfo[meminfo_count-1].start = tag->u.mem.start;
+	meminfo[meminfo_count-1].size = tag->u.mem.size;
 	return 0;
 }
 
@@ -134,6 +148,30 @@ static void parse_atags(const struct tag *t)
 		if (!parse_atag(t))
 			dprintf(INFO, "Ignoring unrecognised tag 0x%08x\n",
 				t->hdr.tag);
+}
+
+static unsigned *target_mem_atag_create(unsigned *ptr, uint32_t size, uint32_t addr)
+{
+	*ptr++ = 4;
+	*ptr++ = ATAG_MEM;
+	*ptr++ = size;
+	*ptr++ = addr;
+
+	return ptr;
+}
+
+unsigned *lkargs_gen_meminfo_atags(unsigned *ptr)
+{
+	uint8_t i = 0;
+
+	for (i = 0; i < meminfo_count; i++)
+	{
+		ptr = target_mem_atag_create(ptr,
+					meminfo[i].size,
+					meminfo[i].start);
+	}
+
+	return ptr;
 }
 
 // parse FDT
@@ -500,6 +538,29 @@ static int parse_fdt(void* fdt)
 
 bool lkargs_has_board_info(void) {
 	return has_board_info;
+}
+
+uint32_t lkargs_gen_meminfo_fdt(void *fdt, uint32_t memory_node_offset)
+{
+	unsigned int i;
+	int ret = 0;
+
+	for (i = 0 ; i < meminfo_count; i++)
+	{
+		ret = dev_tree_add_mem_info(fdt,
+									memory_node_offset,
+									meminfo[i].start,
+									meminfo[i].size);
+
+		if (ret)
+		{
+			dprintf(CRITICAL, "Failed to add memory info\n");
+			goto out;
+		}
+	}
+
+out:
+    return ret;
 }
 #endif
 
