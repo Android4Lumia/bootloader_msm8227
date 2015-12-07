@@ -97,6 +97,7 @@ extern void platform_uninit(void);
 extern void target_uninit(void);
 extern int get_target_boot_params(const char *cmdline, const char *part,
 				  char **buf);
+unsigned hex2unsigned(const char *x);
 
 void *info_buf;
 void write_device_info_mmc(device_info *dev);
@@ -3441,6 +3442,44 @@ static void cmd_oem_dump_partitiontable(const char *arg, void *data, unsigned sz
 	fastboot_okay("");
 }
 
+#define PERSISTENT_RAM_SIG (0x43474244) /* DBGC */
+struct persistent_ram_buffer {
+	uint32_t    sig;
+	int    start;
+	int    size;
+	uint8_t     data[0];
+};
+
+static void cmd_oem_lastkmsg(const char *arg, void *data, unsigned sz) {
+	int i;
+	char buf[MAX_RSP_SIZE];
+
+	if(!arg || !arg[0]) {
+		fastboot_fail("Invalid addr argument");
+		return;
+	}
+	arg++;
+
+	struct persistent_ram_buffer* rambuf = (void*)hex2unsigned(arg);
+	if(rambuf->sig==PERSISTENT_RAM_SIG) {
+		snprintf(buf, sizeof(buf), "found last_kmsg at %p", rambuf);
+		fastboot_info(buf);
+
+		uint8_t* data = &rambuf->data[0];
+		for(i=0; i<rambuf->size-MAX_RSP_SIZE-5; i+=MAX_RSP_SIZE-5) {
+			memcpy(buf, &data[i], MAX_RSP_SIZE-5);
+			buf[MAX_RSP_SIZE-4] = 0;
+			fastboot_info(buf);
+		}
+	}
+	else {
+		snprintf(buf, sizeof(buf), "last_kmsg not found at %p", rambuf);
+		fastboot_info(buf);
+	}
+
+	fastboot_okay("");
+}
+
 
 /* register commands and variables for fastboot */
 void aboot_fastboot_register_commands(void)
@@ -3481,6 +3520,7 @@ void aboot_fastboot_register_commands(void)
 											{"oem bootaddresses", cmd_oem_bootaddresses},
 											{"oem findbootimages", cmd_oem_findbootimages},
 											{"oem dump-partitiontable", cmd_oem_dump_partitiontable},
+											{"oem last_kmsg", cmd_oem_lastkmsg},
 #endif
 										  };
 

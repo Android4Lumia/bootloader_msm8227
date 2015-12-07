@@ -86,7 +86,7 @@ static struct udc_gadget fastboot_gadget = {
 };
 
 /* todo: give lk strtoul and nuke this */
-static unsigned hex2unsigned(const char *x)
+unsigned hex2unsigned(const char *x)
 {
     unsigned n = 0;
 
