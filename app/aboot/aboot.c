@@ -3419,6 +3419,28 @@ static void cmd_oem_findbootimages(const char *arg, void *data, unsigned sz)
 	fastboot_okay("");
 }
 
+static void cmd_oem_dump_partitiontable(const char *arg, void *data, unsigned sz)
+{
+	char buf[1024];
+	unsigned i = 0;
+	extern struct partition_entry *partition_entries;
+
+	for (i = 0; i < partition_get_count(); i++) {
+		snprintf(buf, sizeof(buf),
+		"%d: %s sz:%llu (%llu-%llu) type:%u",
+			i,
+			partition_entries[i].name,
+			partition_entries[i].size,
+			partition_entries[i].first_lba,
+			partition_entries[i].last_lba,
+			partition_entries[i].dtype
+		);
+		fastboot_info(buf);
+	}
+
+	fastboot_okay("");
+}
+
 
 /* register commands and variables for fastboot */
 void aboot_fastboot_register_commands(void)
@@ -3458,6 +3480,7 @@ void aboot_fastboot_register_commands(void)
 											{"oem fbconfig", cmd_oem_fbconfig},
 											{"oem bootaddresses", cmd_oem_bootaddresses},
 											{"oem findbootimages", cmd_oem_findbootimages},
+											{"oem dump-partitiontable", cmd_oem_dump_partitiontable},
 #endif
 										  };
 
