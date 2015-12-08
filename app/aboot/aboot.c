@@ -3356,10 +3356,35 @@ static const char* qcombootimg2str(uint32_t id) {
 	}
 }
 
+#define SBL1_CODEWORD 0x844BDCD1
+#define SBL1_MAGIC    0x73D71034
+
+typedef struct {
+	uint32_t codeword;
+	uint32_t magic;
+	uint32_t reserved1[3];
+
+	uint32_t image_src;
+	uint32_t image_dest_ptr;
+	uint32_t image_size;
+	uint32_t code_size;
+	uint32_t sig_ptr;
+	uint32_t sig_size;
+	uint32_t cert_chain_ptr;
+	uint32_t cert_chain_size;
+	uint32_t oem_root_cert_sel;
+	uint32_t oem_num_root_certs;
+	uint32_t reserved2[5];
+} qcom_sbl1_header_t;
+
 static void cmd_oem_findbootimages(const char *arg, void *data, unsigned sz)
 {
 	char buf[1024];
-	uint32_t readsize = ROUNDUP(MAX(sizeof(qcom_bootimg_t), sizeof(struct boot_img_hdr*)), mmc_get_device_blocksize());
+	uint32_t readsize = 0;
+	readsize = MAX(readsize, sizeof(qcom_bootimg_t));
+	readsize = MAX(readsize, sizeof(boot_img_hdr));
+	readsize = MAX(readsize, sizeof(qcom_sbl1_header_t));
+	readsize = ROUNDUP(readsize, mmc_get_device_blocksize());
 
 	// allocate memory
 	qcom_bootimg_t* bootimg = (qcom_bootimg_t*) memalign(CACHE_LINE, readsize);
@@ -3368,6 +3393,7 @@ static void cmd_oem_findbootimages(const char *arg, void *data, unsigned sz)
 		return;
 	}
 	struct boot_img_hdr* aimg = (struct boot_img_hdr*)bootimg;
+	qcom_sbl1_header_t* sbl1img = (qcom_sbl1_header_t*)bootimg;
 
 	unsigned i = 0;
 	unsigned count = partition_get_count();
@@ -3402,10 +3428,26 @@ static void cmd_oem_findbootimages(const char *arg, void *data, unsigned sz)
 			fastboot_info(buf);
 		}
 
-		// QCOM
+		// QCOM SBL1
+		else if(sbl1img->codeword==SBL1_CODEWORD && sbl1img->magic==SBL1_MAGIC) {
+			snprintf(buf, sizeof(buf), "found QCOM SBL1 image on %s", partition_get_name(i));
+			fastboot_info(buf);
+			snprintf(buf, sizeof(buf), "\tImage: src:%08x dst:%08x sz:%08x", sbl1img->image_src, sbl1img->image_dest_ptr, sbl1img->image_size);
+			fastboot_info(buf);
+			snprintf(buf, sizeof(buf), "\tSignature: src:%08x sz:%08x", sbl1img->sig_ptr, sbl1img->sig_size);
+			fastboot_info(buf);
+			snprintf(buf, sizeof(buf), "\tCERT chain: src:%08x sz:%08x", sbl1img->cert_chain_ptr, sbl1img->cert_chain_size);
+			fastboot_info(buf);
+			snprintf(buf, sizeof(buf), "\tcode size: %08x", sbl1img->code_size);
+			fastboot_info(buf);
+			snprintf(buf, sizeof(buf), "\tOEM root cert: sel:%08x num:%08x", sbl1img->oem_root_cert_sel, sbl1img->oem_num_root_certs);
+			fastboot_info(buf);
+		}
+
+		// QCOM MBN
 		else if(bootimg->image_id<=0x7FFFFFFF && bootimg->image_size>0 && partsize >= bootimg->image_size &&
-			(bootimg->code_size + bootimg->signature_size + bootimg->cert_chain_size)<=bootimg->image_size) {
-			snprintf(buf, sizeof(buf), "found QCOM image on %s", partition_get_name(i));
+			bootimg->image_size == (bootimg->code_size + bootimg->signature_size + bootimg->cert_chain_size)) {
+			snprintf(buf, sizeof(buf), "found QCOM MBN image on %s", partition_get_name(i));
 			fastboot_info(buf);
 			snprintf(buf, sizeof(buf), "\tID:%u(%s) version:%u", bootimg->image_id, qcombootimg2str(bootimg->image_id), bootimg->header_vsn_num);
 			fastboot_info(buf);
