@@ -30,7 +30,6 @@
 #ifndef __PLATFORM_SPLASH_H
 #define __PLATFORM_SPLASH_H
 
-#if (!DISPLAY_TYPE_MIPI)
 #define SPLASH_IMAGE_WIDTH     124
 #define SPLASH_IMAGE_HEIGHT    113
 /* This image is (SPLASH_IMAGE_WIDTH x SPLASH_IMAGE_WIDTH) raw image */
@@ -3542,7 +3541,7 @@ static char imageBuffer[] = {
 
 };
 
-#else
+#if (DISPLAY_TYPE_MIPI)
 
 #define SPLASH_IMAGE_WIDTH     113
 #define SPLASH_IMAGE_HEIGHT    124

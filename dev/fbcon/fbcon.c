@@ -364,9 +364,11 @@ void display_default_image_on_screen(void)
 	image = (pm_appsbl_charging_in_progress() ? image_batt888 : imageBuffer_rgb888);
 #else
 	image = imageBuffer_rgb888;
+	if (bytes_per_bpp == 2)
+		image = imageBuffer;
 #endif
 
-	if (bytes_per_bpp == 3) {
+	if (bytes_per_bpp == 3 || bytes_per_bpp == 2) {
 		for (i = 0; i < SPLASH_IMAGE_HEIGHT; i++) {
 			memcpy (config->base + ((image_base + (i * (config->width))) * bytes_per_bpp),
 			image + (i * SPLASH_IMAGE_WIDTH * bytes_per_bpp),
