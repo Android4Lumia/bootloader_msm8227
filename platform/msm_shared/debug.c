@@ -104,6 +104,61 @@ unsigned lk_log_getsize(void) {
 }
 #endif /* WITH_DEBUG_LOG_BUF */
 
+#if WITH_DEBUG_LAST_KMSG
+#define PERSISTENT_RAM_SIG (0x43474244) /* DBGC */
+static int last_kmsg_initialized = 0;
+struct persistent_ram_buffer {
+	uint32_t sig;
+	int start;
+	int size;
+	uint8_t data[0];
+};
+
+struct persistent_ram_buffer* rambuf = NULL;
+
+static void lastkmsg_putc(char c)
+{
+	if(!c || !last_kmsg_initialized)
+		return;
+
+	rambuf->data[rambuf->size++] = c;
+	if (unlikely(rambuf->size >= lastkmsg_get_size()))
+		rambuf->size = 0;
+}
+
+__WEAK uint32_t lastkmsg_get_addr(void) {
+	return PERSISTENT_RAM_ADDR;
+}
+
+__WEAK uint32_t lastkmsg_get_size(void) {
+	return PERSISTENT_RAM_SIZE;
+}
+
+void lastkmsg_init(void) {
+	int i;
+
+	rambuf = (void*)lastkmsg_get_addr();
+
+	if(rambuf->sig==PERSISTENT_RAM_SIG) {
+		uint8_t* data = &rambuf->data[0];
+		dprintf(INFO, "===== LAST KMSG =====\n");
+
+		for(i=0; i<rambuf->size; i++)
+			_dputc((char)data[i]);
+
+		dprintf(INFO, "=====================\n");
+	}
+
+	rambuf->sig = PERSISTENT_RAM_SIG;
+	rambuf->start = 0;
+	rambuf->size = 0;
+	last_kmsg_initialized = 1;
+
+	dprintf(INFO, "initialized last_kmsg\n");
+}
+
+#endif /* WITH_DEBUG_LAST_KMSG */
+
 void display_fbcon_message(char *str)
 {
 #if ENABLE_FBCON_LOGGING
@@ -117,6 +172,9 @@ void _dputc(char c)
 {
 #if WITH_DEBUG_LOG_BUF
 	log_putc(c);
+#endif
+#if WITH_DEBUG_LAST_KMSG
+	lastkmsg_putc(c);
 #endif
 #if WITH_DEBUG_DCC
 	if (c == '\n') {

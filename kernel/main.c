@@ -78,6 +78,10 @@ void kmain(void)
 	// do any super early target initialization
 	target_early_init();
 
+#if WITH_DEBUG_LAST_KMSG
+	lastkmsg_init();
+#endif
+
 	dprintf(INFO, "welcome to lk\n\n");
 	bs_set_timestamp(BS_BL_START);
 
