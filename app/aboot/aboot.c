@@ -2967,25 +2967,20 @@ void cmd_oem_devinfo(const char *arg, void *data, unsigned sz)
 }
 
 #if WITH_DEBUG_LOG_BUF
-void cmd_oem_lk_log(const char *arg, void *data, unsigned sz)
+void cmd_oem_lk_log(const char *arg, void *_data, unsigned sz)
 {
 	char* pch;
-	char* buf = strdup(lk_log_getbuf());
+	char* data = lk_log_getbuf();
+	uint32_t logsize = lk_log_getsize();
+	uint32_t i;
 
-	pch = strtok(buf, "\n\r");
-	while (pch != NULL) {
-		char* ptr = pch;
-		while(ptr!=NULL) {
-			fastboot_info(ptr);
-			if(strlen(ptr)>MAX_RSP_SIZE-5)
-				ptr+=MAX_RSP_SIZE-5;
-			else ptr=NULL;
-		}
-
-		pch = strtok(NULL, "\n\r");
+	for(i=0; i<logsize-MAX_RSP_SIZE-5; i+=MAX_RSP_SIZE-5) {
+		uint32_t copysize = MIN(logsize-i, MAX_RSP_SIZE-5);
+		memcpy(buf, &data[i], copysize);
+		buf[copysize] = 0;
+		fastboot_info(buf);
 	}
 
-	free(buf);
 	fastboot_okay("");
 }
 #endif
