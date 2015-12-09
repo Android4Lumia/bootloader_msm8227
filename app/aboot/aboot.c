@@ -3501,14 +3501,7 @@ struct persistent_ram_buffer {
 };
 
 static void cmd_oem_lastkmsg(const char *arg, void *data, unsigned sz) {
-	int i;
 	char buf[MAX_RSP_SIZE];
-
-	if(!arg || !arg[0]) {
-		fastboot_fail("Invalid addr argument");
-		return;
-	}
-	arg++;
 
 	struct persistent_ram_buffer* rambuf = (void*)hex2unsigned(arg);
 	if(rambuf->sig==PERSISTENT_RAM_SIG) {
