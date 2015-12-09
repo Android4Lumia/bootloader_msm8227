@@ -2967,20 +2967,9 @@ void cmd_oem_devinfo(const char *arg, void *data, unsigned sz)
 }
 
 #if WITH_DEBUG_LOG_BUF
-void cmd_oem_lk_log(const char *arg, void *_data, unsigned sz)
+void cmd_oem_lk_log(const char *arg, void *data, unsigned sz)
 {
-	char* pch;
-	char* data = lk_log_getbuf();
-	uint32_t logsize = lk_log_getsize();
-	uint32_t i;
-
-	for(i=0; i<logsize-MAX_RSP_SIZE-5; i+=MAX_RSP_SIZE-5) {
-		uint32_t copysize = MIN(logsize-i, MAX_RSP_SIZE-5);
-		memcpy(buf, &data[i], copysize);
-		buf[copysize] = 0;
-		fastboot_info(buf);
-	}
-
+	fastboot_send_buf(lk_log_getbuf(), lk_log_getsize());
 	fastboot_okay("");
 }
 #endif
@@ -3526,12 +3515,9 @@ static void cmd_oem_lastkmsg(const char *arg, void *data, unsigned sz) {
 		snprintf(buf, sizeof(buf), "found last_kmsg at %p", rambuf);
 		fastboot_info(buf);
 
+
 		uint8_t* data = &rambuf->data[0];
-		for(i=0; i<rambuf->size-MAX_RSP_SIZE-5; i+=MAX_RSP_SIZE-5) {
-			memcpy(buf, &data[i], MAX_RSP_SIZE-5);
-			buf[MAX_RSP_SIZE-4] = 0;
-			fastboot_info(buf);
-		}
+		fastboot_send_buf(data, rambuf->size);
 	}
 	else {
 		snprintf(buf, sizeof(buf), "last_kmsg not found at %p", rambuf);

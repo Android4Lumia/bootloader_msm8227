@@ -428,6 +428,19 @@ void fastboot_okay(const char *info)
 	fastboot_ack("OKAY", info);
 }
 
+void fastboot_send_buf(void* _data, size_t size) {
+	uint32_t i;
+	char buf[MAX_RSP_SIZE];
+	uint8_t* data = _data;
+
+	for(i=0; i<size; i+=MAX_RSP_SIZE-5) {
+		uint32_t copysize = MIN(size-i, MAX_RSP_SIZE-5);
+		memcpy(buf, &data[i], copysize);
+		buf[copysize] = 0;
+		fastboot_info(buf);
+	}
+}
+
 static void getvar_all()
 {
 	struct fastboot_var *var;
