@@ -59,7 +59,7 @@
 extern int platform_is_8974();
 extern int platform_is_8974ac();
 extern  bool target_use_signed_kernel(void);
-void set_sdc_power_ctrl();
+void set_sdc_power_ctrl(uint8_t slot);
 
 static unsigned int target_id;
 static uint32_t pmic_ver;
@@ -205,6 +205,7 @@ crypto_engine_type board_ce_type(void)
 void target_mmc_sdhci_init()
 {
 	struct mmc_config_data config = {0};
+	struct mmc_device *tmpdev;
 	uint32_t soc_ver = 0;
 
 	soc_ver = board_soc_version();
@@ -242,19 +243,37 @@ void target_mmc_sdhci_init()
 	config.pwrctl_base = mmc_sdc_base[config.slot - 1];
 	config.pwr_irq     = mmc_sdc_pwrctl_irq[config.slot - 1];
 
-	if (!(dev = mmc_init(&config))) {
-		/* Trying Slot 2 next */
-		config.slot = 2;
-		config.max_clk_rate = MMC_CLK_200MHZ;
-		config.sdhc_base = mmc_sdhci_base[config.slot - 1];
-		config.pwrctl_base = mmc_sdc_base[config.slot - 1];
-		config.pwr_irq     = mmc_sdc_pwrctl_irq[config.slot - 1];
+	/*
+	 * Set drive strength & pull ctrl for
+	 * emmc
+	 */
+	set_sdc_power_ctrl(config.slot);
 
-		if (!(dev = mmc_init(&config))) {
-			dprintf(CRITICAL, "mmc init failed!");
-			ASSERT(0);
-		}
+	if (!(dev = mmc_init(&config))) {
+		dprintf(CRITICAL, "mmc1 init failed!");
 	}
+
+	/* Trying Slot 2 next */
+	config.slot = 2;
+	config.max_clk_rate = MMC_CLK_200MHZ;
+	config.sdhc_base = mmc_sdhci_base[config.slot - 1];
+	config.pwrctl_base = mmc_sdc_base[config.slot - 1];
+	config.pwr_irq     = mmc_sdc_pwrctl_irq[config.slot - 1];
+
+	/*
+	 * Set drive strength & pull ctrl for
+	 * emmc
+	 */
+	set_sdc_power_ctrl(config.slot);
+
+	if (!(tmpdev = mmc_init(&config))) {
+		dprintf(CRITICAL, "mmc2 init failed!");
+	}
+	else if(!dev)
+		dev = tmpdev;
+
+	/* we need at least one mmc device */
+	ASSERT(dev);
 
 	/*
 	 * MMC initialization is complete, read the partition table info
@@ -337,12 +356,6 @@ void target_init(void)
 
 	if (target_use_signed_kernel())
 		target_crypto_init_params();
-
-	/*
-	 * Set drive strength & pull ctrl for
-	 * emmc
-	 */
-	set_sdc_power_ctrl();
 
 #if MMC_SDHCI_SUPPORT
 	target_mmc_sdhci_init();
@@ -712,12 +725,18 @@ void shutdown_device()
 	dprintf(CRITICAL, "Shutdown failed\n");
 }
 
-void set_sdc_power_ctrl()
+void set_sdc_power_ctrl(uint8_t slot)
 {
 	uint8_t tlmm_hdrv_clk = 0;
 	uint32_t platform_id = 0;
+	uint32_t reg = 0;
 
 	platform_id = board_platform_id();
+
+	if (slot == 0x1)
+	    reg = SDC1_HDRV_PULL_CTL;
+	else if (slot == 0x2)
+	    reg = SDC2_HDRV_PULL_CTL;
 
 	switch(platform_id)
 	{
@@ -739,22 +758,22 @@ void set_sdc_power_ctrl()
 	/* Drive strength configs for sdc pins */
 	struct tlmm_cfgs sdc1_hdrv_cfg[] =
 	{
-		{ SDC1_CLK_HDRV_CTL_OFF,  tlmm_hdrv_clk, TLMM_HDRV_MASK },
-		{ SDC1_CMD_HDRV_CTL_OFF,  TLMM_CUR_VAL_10MA, TLMM_HDRV_MASK },
-		{ SDC1_DATA_HDRV_CTL_OFF, TLMM_CUR_VAL_10MA, TLMM_HDRV_MASK },
+		{ SDC1_CLK_HDRV_CTL_OFF,  tlmm_hdrv_clk, TLMM_HDRV_MASK, reg },
+		{ SDC1_CMD_HDRV_CTL_OFF,  TLMM_CUR_VAL_10MA, TLMM_HDRV_MASK, reg },
+		{ SDC1_DATA_HDRV_CTL_OFF, TLMM_CUR_VAL_10MA, TLMM_HDRV_MASK, reg },
 	};
 
 	/* Pull configs for sdc pins */
 	struct tlmm_cfgs sdc1_pull_cfg[] =
 	{
-		{ SDC1_CLK_PULL_CTL_OFF,  TLMM_NO_PULL, TLMM_PULL_MASK },
-		{ SDC1_CMD_PULL_CTL_OFF,  TLMM_PULL_UP, TLMM_PULL_MASK },
-		{ SDC1_DATA_PULL_CTL_OFF, TLMM_PULL_UP, TLMM_PULL_MASK },
+		{ SDC1_CLK_PULL_CTL_OFF,  TLMM_NO_PULL, TLMM_PULL_MASK, reg },
+		{ SDC1_CMD_PULL_CTL_OFF,  TLMM_PULL_UP, TLMM_PULL_MASK, reg },
+		{ SDC1_DATA_PULL_CTL_OFF, TLMM_PULL_UP, TLMM_PULL_MASK, reg },
 	};
 
 	struct tlmm_cfgs sdc1_rclk_cfg[] =
 	{
-		{ SDC1_RCLK_PULL_CTL_OFF, TLMM_PULL_DOWN, TLMM_PULL_MASK },
+		{ SDC1_RCLK_PULL_CTL_OFF, TLMM_PULL_DOWN, TLMM_PULL_MASK, reg },
 	};
 
 	/* Set the drive strength & pull control values */
