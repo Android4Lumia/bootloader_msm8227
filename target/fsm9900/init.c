@@ -55,9 +55,7 @@ static void set_sdc_power_ctrl();
 
 static unsigned int target_id;
 
-#if MMC_SDHCI_SUPPORT
 struct mmc_device *dev;
-#endif
 
 #define PMIC_ARB_CHANNEL_NUM    0
 #define PMIC_ARB_OWNER_ID       0
@@ -209,12 +207,12 @@ static void target_mmc_mci_init()
 	slot = 1;
 	base_addr = mmc_sdc_base[slot - 1];
 
-	if (mmc_boot_main(slot, base_addr))
+	if (!(dev = mmc_boot_main(slot, base_addr)))
 	{
 		/* Trying Slot 2 next */
 		slot = 2;
 		base_addr = mmc_sdc_base[slot - 1];
-		if (mmc_boot_main(slot, base_addr)) {
+		if (!(dev = mmc_boot_main(slot, base_addr))) {
 			dprintf(CRITICAL, "mmc init failed!");
 			ASSERT(0);
 		}
@@ -453,7 +451,7 @@ void target_uninit(void)
 #if MMC_SDHCI_SUPPORT
 	mmc_put_card_to_sleep(dev);
 #else
-	mmc_put_card_to_sleep();
+	mmc_put_card_to_sleep(dev);
 #endif
 #ifdef SSD_ENABLE
 	clock_ce_disable(SSD_CE_INSTANCE_1);

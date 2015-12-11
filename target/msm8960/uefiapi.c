@@ -78,6 +78,7 @@ void api_platform_init(void) {
 /////////////////////////////////////////////////////////////////////////
 
 extern char sn_buf[13];
+static struct mmc_device *dev;
 
 static unsigned mmc_sdc_base[] =
     { MSM_SDC1_BASE, MSM_SDC2_BASE, MSM_SDC3_BASE, MSM_SDC4_BASE };
@@ -89,11 +90,11 @@ int api_mmc_init(void) {
 	/* Trying Slot 1 first */
 	slot = 1;
 	base_addr = mmc_sdc_base[slot - 1];
-	if (mmc_boot_main(slot, base_addr)) {
+	if (!(dev = mmc_boot_main(slot, base_addr))) {
 		/* Trying Slot 3 next */
 		slot = 3;
 		base_addr = mmc_sdc_base[slot - 1];
-		if (mmc_boot_main(slot, base_addr)) {
+		if (!(dev = mmc_boot_main(slot, base_addr))) {
 			dprintf(CRITICAL, "mmc init failed!");
 			ASSERT(0);
 		}

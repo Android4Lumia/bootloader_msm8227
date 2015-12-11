@@ -59,6 +59,7 @@ static unsigned mmc_sdc_base[] =
     { MSM_SDC1_BASE, MSM_SDC2_BASE, MSM_SDC3_BASE, MSM_SDC4_BASE };
 
 static struct ptable flash_ptable;
+static struct mmc_device *dev;
 static int hw_platform_type = -1;
 
 /* Setting this variable to different values defines the
@@ -210,11 +211,11 @@ void target_init(void)
 		/* Trying Slot 2 first */
 		slot = 2;
 		base_addr = mmc_sdc_base[slot - 1];
-		if (mmc_boot_main(slot, base_addr)) {
+		if (!(dev = mmc_boot_main(slot, base_addr))) {
 			/* Trying Slot 4 next */
 			slot = 4;
 			base_addr = mmc_sdc_base[slot - 1];
-			if (mmc_boot_main(slot, base_addr)) {
+			if (!(dev = mmc_boot_main(slot, base_addr))) {
 				dprintf(CRITICAL, "mmc init failed!");
 				ASSERT(0);
 			}

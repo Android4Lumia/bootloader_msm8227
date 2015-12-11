@@ -52,6 +52,7 @@
 unsigned int fota_cookie[1];
 
 static struct ptable flash_ptable;
+static struct mmc_device *dev;
 unsigned hw_platform = 0;
 unsigned target_msm_id = 0;
 unsigned msm_version = 0;
@@ -191,7 +192,7 @@ void target_init(void)
 		 */
 		while (readl(MSM_SHARED_BASE + 0x14) != 1) ;
 
-		if (mmc_boot_main(MMC_SLOT, MSM_SDC3_BASE)) {
+		if (!(dev = mmc_boot_main(MMC_SLOT, MSM_SDC3_BASE))) {
 			dprintf(CRITICAL, "mmc init failed!");
 			ASSERT(0);
 		}

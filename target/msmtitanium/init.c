@@ -63,6 +63,8 @@
 static uint32_t mmc_sdc_base[] =
 	{ MSM_SDC1_BASE, MSM_SDC2_BASE };
 
+static struct mmc_device *dev;
+
 
 void target_early_init(void)
 {
@@ -147,11 +149,11 @@ void target_init(void)
 	/* Trying Slot 1*/
 	slot = 1;
 	base_addr = mmc_sdc_base[slot - 1];
-	if (mmc_boot_main(slot, base_addr)) {
+	if (!(dev = mmc_boot_main(slot, base_addr))) {
 		/* Trying Slot 2 next */
 		slot = 2;
 		base_addr = mmc_sdc_base[slot - 1];
-		if (mmc_boot_main(slot, base_addr)) {
+		if (!(dev = mmc_boot_main(slot, base_addr))) {
 			dprintf(CRITICAL, "mmc init failed!");
 			ASSERT(0);
 		}

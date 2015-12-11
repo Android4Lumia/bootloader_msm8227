@@ -108,9 +108,7 @@ static key_event_source_t event_source = {
 //                            PLATFORM                                 //
 /////////////////////////////////////////////////////////////////////////
 
-#if MMC_SDHCI_SUPPORT
 extern struct mmc_device *dev;
-#endif
 
 void api_platform_early_init(void) {
 	// from platform_early_init, but without GIC
@@ -139,7 +137,7 @@ void api_platform_uninit(void) {
 #if MMC_SDHCI_SUPPORT
 	mmc_put_card_to_sleep(dev);
 #else
-	mmc_put_card_to_sleep();
+	mmc_put_card_to_sleep(dev);
 #endif
 
 	// Disable HC mode before jumping to kernel

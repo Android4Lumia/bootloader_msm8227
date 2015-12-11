@@ -49,6 +49,7 @@
 #define NUM_PAGES_PER_BLOCK    0x40
 
 static struct ptable flash_ptable;
+static struct mmc_device *dev;
 static unsigned mmc_sdc_base[] = { MSM_SDC1_BASE, MSM_SDC2_BASE, MSM_SDC3_BASE, MSM_SDC4_BASE};
 static int hw_platform_type = -1;
 
@@ -134,12 +135,12 @@ void target_init(void)
 		/* Trying SDC3 first */
 		slot = 3;
 		base_addr = mmc_sdc_base[slot - 1];
-		if(mmc_boot_main(slot, base_addr))
+		if(!(dev = mmc_boot_main(slot, base_addr)))
 		{
 			/* Trying SDC1 next */
 			slot = 1;
 			base_addr = mmc_sdc_base[slot - 1];
-			if(mmc_boot_main(slot, base_addr))
+			if(!(dev = mmc_boot_main(slot, base_addr)))
 			{
 				dprintf(CRITICAL, "mmc init failed!");
 				ASSERT(0);

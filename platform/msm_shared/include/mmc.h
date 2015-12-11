@@ -39,9 +39,7 @@
 
 #define BOARD_KERNEL_PAGESIZE                2048
 
-extern unsigned int mmc_boot_mci_base;
-
-#define MMC_BOOT_MCI_REG(offset)          ((mmc_boot_mci_base) + offset)
+#define MMC_BOOT_MCI_REG(offset)          ((host->boot_mci_base) + offset)
 
 /*
  * Define Macros for SDCC Registers
@@ -410,7 +408,7 @@ extern unsigned int mmc_boot_mci_base;
 #define MMC_BOOT_EXT_ERASE_TIMEOUT_MULT   223
 #define MMC_BOOT_EXT_HC_ERASE_GRP_SIZE    224
 
-#define IS_BIT_SET_EXT_CSD(val, bit)      ((ext_csd_buf[val]) & (1<<(bit)))
+#define IS_BIT_SET_EXT_CSD(val, bit)      ((card->ext_csd_buf[val]) & (1<<(bit)))
 #define IS_ADDR_OUT_OF_RANGE(resp)        ((resp >> 31) & 0x01)
 
 #define MMC_BOOT_US_PERM_WP_EN            2
@@ -524,6 +522,8 @@ struct mmc_card {
 	struct mmc_cid cid;
 	struct mmc_csd csd;
 	struct mmc_boot_scr scr;
+	unsigned char ext_csd_buf[512];
+	unsigned char wp_status_buf[8];
 };
 
 #define MMC_BOOT_XFER_MULTI_BLOCK        0
@@ -543,6 +543,21 @@ struct mmc_host {
 	unsigned int cmd_retry;
 	uint32_t mmc_cont_version;
 	struct mmc_caps caps;
+	unsigned int  boot_mci_base;
+};
+
+struct mmc_device {
+	struct mmc_host host;
+	struct mmc_card card;
+
+	unsigned char slot;
+
+#if MMC_BOOT_BAM
+	uint32_t dml_base;
+	struct bam_instance bam;
+	/* Align at BAM_DESC_SIZE boundary */
+	struct bam_desc desc_fifo[MMC_BOOT_BAM_FIFO_SIZE] __attribute__ ((aligned(BAM_DESC_SIZE)));
+#endif
 };
 
 /* MACRO used to evoke regcomp */
@@ -618,7 +633,7 @@ struct mmc_host {
 #define CORE_SW_RST_START                          0x7
 #define CORE_SW_RST_WIDTH                          0x1
 
-unsigned int mmc_boot_main(unsigned char slot, unsigned int base);
+struct mmc_device* mmc_boot_main(unsigned char slot, unsigned int base);
 unsigned int mmc_write(unsigned long long data_addr,
 		       unsigned int data_len, unsigned int *in);
 
@@ -632,9 +647,7 @@ unsigned int mmc_erase_card(unsigned long long data_addr,
 void mmc_mclk_reg_wr_delay();
 void mmc_boot_mci_clk_enable();
 void mmc_boot_mci_clk_disable();
-uint8_t card_supports_ddr_mode();
-uint8_t card_supports_hs200_mode();
 uint64_t mmc_get_device_capacity();
-void mmc_put_card_to_sleep(void);
+void mmc_put_card_to_sleep(struct mmc_device *dev);
 #endif
 #endif
