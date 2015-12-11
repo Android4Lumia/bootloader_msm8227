@@ -76,6 +76,10 @@
 #include <wdog.h>
 #endif
 
+#if WITH_LIB_BIO
+#include <lib/bio.h>
+#endif
+
 #include <cmdline.h>
 #include <atagparse.h>
 
@@ -3470,23 +3474,42 @@ static void cmd_oem_findbootimages(const char *arg, void *data, unsigned sz)
 	fastboot_okay("");
 }
 
+static void bio_foreach_cb(void* pdata, const char* name) {
+	char buf[1024];
+
+	bdev_t* dev = bio_open(name);
+	if(!dev) return;
+
+	snprintf(buf, sizeof(buf),
+		"%s(%s) sz:%lld bsz:%zd ref:%d sub:%d",
+		dev->name, dev->label, dev->size, dev->block_size, dev->ref, dev->is_subdev
+	);
+	fastboot_info(buf);
+}
+
 static void cmd_oem_dump_partitiontable(const char *arg, void *data, unsigned sz)
 {
 	char buf[1024];
 	unsigned i = 0;
 	extern struct partition_entry *partition_entries;
 
-	for (i = 0; i < partition_get_count(); i++) {
-		snprintf(buf, sizeof(buf),
-		"%d: %s sz:%llu (%llu-%llu) type:%u",
-			i,
-			partition_entries[i].name,
-			partition_entries[i].size,
-			partition_entries[i].first_lba,
-			partition_entries[i].last_lba,
-			partition_entries[i].dtype
-		);
-		fastboot_info(buf);
+	if(!strcmp(arg, "qcom")) {
+		for (i = 0; i < partition_get_count(); i++) {
+			snprintf(buf, sizeof(buf),
+				"%d: %s sz:%llu (%llu-%llu) type:%u",
+				i,
+				partition_entries[i].name,
+				partition_entries[i].size,
+				partition_entries[i].first_lba,
+				partition_entries[i].last_lba,
+				partition_entries[i].dtype
+			);
+			fastboot_info(buf);
+		}
+	}
+
+	else {
+		bio_foreach(bio_foreach_cb, NULL, true);
 	}
 
 	fastboot_okay("");
