@@ -155,12 +155,7 @@ void set_sdc_power_ctrl(void);
 void target_mmc_sdhci_init(void);
 void target_mmc_mci_init(void);
 
-int api_mmc_init(lkapi_biodev_t* dev) {
-	static int initialized = 0;
-
-	if(initialized)
-		goto out;
-
+int api_mmc_init(void) {
 	/*
 	 * Set drive strength & pull ctrl for
 	 * emmc
@@ -173,11 +168,6 @@ int api_mmc_init(lkapi_biodev_t* dev) {
 	target_mmc_mci_init();
 #endif
 
-	initialized = 1;
-
-out:
-	if(dev)
-		dev->num_blocks = mmc_get_device_capacity()/dev->block_size;
 	return 0;
 }
 

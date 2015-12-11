@@ -111,19 +111,8 @@ void api_platform_init(void) {
 
 void target_sdc_init(void);
 
-int api_mmc_init(lkapi_biodev_t* dev) {
-	static int initialized = 0;
-
-	if(initialized)
-		goto out;
-
+int api_mmc_init(void) {
 	target_sdc_init();
-
-	initialized = 1;
-
-out:
-	if(dev)
-		dev->num_blocks = mmc_get_device_capacity()/dev->block_size;
 	return 0;
 }
 

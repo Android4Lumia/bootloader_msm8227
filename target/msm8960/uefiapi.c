@@ -82,13 +82,9 @@ extern char sn_buf[13];
 static unsigned mmc_sdc_base[] =
     { MSM_SDC1_BASE, MSM_SDC2_BASE, MSM_SDC3_BASE, MSM_SDC4_BASE };
 
-int api_mmc_init(lkapi_biodev_t* dev) {
+int api_mmc_init(void) {
 	unsigned base_addr;
 	unsigned char slot;
-	static int initialized = 0;
-
-	if(initialized)
-		goto out;
 
 	/* Trying Slot 1 first */
 	slot = 1;
@@ -106,10 +102,5 @@ int api_mmc_init(lkapi_biodev_t* dev) {
 	target_serialno((unsigned char *) sn_buf);
 	dprintf(SPEW,"serial number: %s\n",sn_buf);
 
-	initialized = 1;
-
-out:
-	if(dev)
-		dev->num_blocks = mmc_get_device_capacity()/dev->block_size;
 	return 0;
 }
