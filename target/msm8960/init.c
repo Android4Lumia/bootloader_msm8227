@@ -157,14 +157,19 @@ void target_init(void)
 	/* Trying Slot 1 first */
 	slot = 1;
 	base_addr = mmc_sdc_base[slot - 1];
-	if (!(dev = mmc_boot_main(slot, base_addr))) {
-		/* Trying Slot 3 next */
-		slot = 3;
-		base_addr = mmc_sdc_base[slot - 1];
-		if (!(dev = mmc_boot_main(slot, base_addr))) {
-			dprintf(CRITICAL, "mmc init failed!");
-			ASSERT(0);
-		}
+	struct mmc_device* newdev = mmc_boot_main(slot, base_addr);
+	if(!dev)
+		dev = newdev;
+
+	slot = 3;
+	base_addr = mmc_sdc_base[slot - 1];
+	newdev = mmc_boot_main(slot, base_addr);
+	if(!dev)
+		dev = newdev;
+
+	if(!dev) {
+		dprintf(CRITICAL, "mmc init failed!");
+		ASSERT(0);
 	}
 }
 
